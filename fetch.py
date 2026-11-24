@@ -9,7 +9,7 @@ OUT = "docs/data.json"
 def fetch(sym, tries=3):
     for k in range(tries):
         try:
-            df = yf.download(sym, period="2y", auto_adjust=False, progress=False)
+            df = yf.download(sym, period="5y", auto_adjust=False, progress=False)
             if hasattr(df.columns, "get_level_values"):
                 df.columns = df.columns.get_level_values(0)
             df = df.dropna(subset=["Open", "High", "Low", "Close"])
