@@ -1,15 +1,16 @@
-"""每天抓三大指數日K（含成交量）存成 docs/data.json。
+"""每天抓 S&P 500 與 Nasdaq 日K（含成交量，從 2018-06-01 起；2019 年前的半年用來暖機算均線與訊號）存成 docs/data.json。
 失敗時保留舊檔，不會覆蓋成空資料。"""
 import json, sys, time, datetime as dt
 import yfinance as yf
 
 SYMBOLS = {"S&P 500": "^GSPC", "Nasdaq": "^IXIC"}
 OUT = "docs/data.json"
+START = "2018-06-01"   # 網頁從 2019-01-01 開始回測，前面半年拿來算 MA200 與訊號
 
 def fetch(sym, tries=3):
     for k in range(tries):
         try:
-            df = yf.download(sym, period="5y", auto_adjust=False, progress=False)
+            df = yf.download(sym, start=START, auto_adjust=False, progress=False)
             if hasattr(df.columns, "get_level_values"):
                 df.columns = df.columns.get_level_values(0)
             df = df.dropna(subset=["Open", "High", "Low", "Close"])
