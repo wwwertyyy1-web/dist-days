@@ -48,10 +48,10 @@ h2{font-size:16px;margin:22px 0 8px}
   <div id="note"></div>
   <div id="chart"></div>
   <div class="legend">
-    <span><i style="background:var(--dist)"></i>有效出貨日 D</span>
+    <span><i style="background:var(--dist)"></i>有效出貨日 D（漲勢確立後重新計算）</span>
     <span><i style="background:var(--gone)"></i>已失效出貨日</span>
     <span><i style="background:var(--stall)"></i>停滯日 S</span>
-    <span><i style="background:var(--up)"></i>頭部確立 ■</span>
+    <span><i style="background:var(--up)"></i>頭部確立 ■（S&amp;P 500 預設只看出貨日，Nasdaq 預設出貨日或死亡交叉）</span>
     <span><i style="background:var(--ftd)"></i>漲勢確立 ▲</span>
     <span><i style="background:var(--stall)"></i>MA20</span>
     <span><i style="background:var(--ftd)"></i>MA50</span>
@@ -59,7 +59,7 @@ h2{font-size:16px;margin:22px 0 8px}
   <div class="params" id="params"></div>
   <h2>頭部確立與漲勢確立</h2>
   <div id="ytd" style="font-size:14px;margin:-2px 0 8px"></div>
-  <div class="hint">頭部確立：有效出貨日首次升到 5 個以上，或 MA20 向下穿過 MA50（死亡交叉），可在下方參數區切換。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 8 天，出現大漲（或收盤創歷史新高）、量比前一天增加、且量大於 50 日均量。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
+  <div class="hint">頭部確立：有效出貨日（漲勢確立後重新計算）升到 6 個的那一天，收盤在 MA50 之下，或 MA20 向下穿過 MA50（死亡交叉）。預設條件依指數不同：S&amp;P 500 只看出貨日，Nasdaq 出貨日和死亡交叉都看；切換分頁會套用該指數的預設，也可在下方參數區自行改。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 15 天，出現大漲（或收盤創歷史新高），且量比前一天增加。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
   <div class="scroll"><table>
     <thead><tr><th>頭部確立日期</th><th>觸發條件</th><th>收盤</th><th>漲勢確立日期</th><th>收盤</th><th>下一個頭部確立日</th><th>漲勢確立後漲跌</th></tr></thead>
     <tbody id="tops"></tbody>
@@ -73,13 +73,16 @@ h2{font-size:16px;margin:22px 0 8px}
 </main>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5, ftdGain:1.25, ftdAvg:50, ftdAth:true, topMode:"any"};
+const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5, distN:6, below50:true, ftdGain:1.25, ftdMax:15, ftdAth:true, topMode:"dist"};
+const TOP_DEFAULT = {"S&P 500":"dist", "Nasdaq":"any"};  // 各指數的頭部確立條件預設
+let topSel = null;
+const SHOWN = ["S&P 500","Nasdaq"];  // 只顯示這兩個指數（資料裡若還有 Dow 會略過）
 const SHOW = 400;            // 找不到起始日時的備用天數
 let START = "2025-01-01";  // 圖表與表格從這天開始顯示
 const FIELDS = [
   ["drop","出貨日跌幅 ≥（%）",0.05],["stallMax","停滯日漲幅 ≤（%）",0.05],
   ["stallPos","停滯日收盤位置 ＜ 區間（%）",5],["expire","失效天數（交易日）",1],["rally","失效漲幅（%）",0.5],
-  ["ftdGain","漲勢確立漲幅 ≥（%）",0.05],["ftdAvg","均量天數（交易日）",1]
+  ["distN","頭部確立出貨日數 ≥",1],["ftdGain","漲勢確立漲幅 ≥（%）",0.05],["ftdMax","漲勢確立最晚第幾天",1]
 ];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 let ALL, current, chart, candle, vol, ma20S, ma50S;
@@ -100,50 +103,54 @@ function analyze(rows){
       res.stall.push({i,age:last-i});
     }
   }
-  const counts = new Array(n).fill(0);
-  res.dist.forEach(d=>{
-    let mx=-Infinity;
-    for(let t=d.i;t<n && t-d.i<P.expire;t++){
+  res.dist.forEach(d=>{               // d.e = 這個出貨日失效的那一天（不含）
+    let mx=-Infinity, t=d.i;
+    for(;t<n && t-d.i<P.expire;t++){
       mx=Math.max(mx,rows[t].c);
       if(mx>=rows[d.i].c*(1+P.rally/100)) break;
-      counts[t]++;
     }
+    d.e=t;
   });
-  res.counts=counts;
-  const avgVol=i=>{ if(i<P.ftdAvg) return null; let sum=0; for(let k=i-P.ftdAvg;k<i;k++) sum+=rows[k].v; return sum/P.ftdAvg; };
+  let lastFtd=-1;                      // 漲勢確立後，出貨日重新計算
+  const cnt=t=>res.dist.reduce((s,d)=>s+(d.i>lastFtd && d.i<=t && t<d.e ? 1:0),0);
   const newAtt=t=>({d1:t,low:Math.min(rows[t].l,rows[t-1].l)});
   const pmax=[]; { let m=-Infinity; rows.forEach((r,i)=>{pmax[i]=m; m=Math.max(m,r.c);}); }
   const sma=len=>rows.map((_,i)=>{ if(i<len-1) return null; let s=0; for(let k=i-len+1;k<=i;k++) s+=rows[k].c; return s/len; });
   res.ma20=sma(20); res.ma50=sma(50);
   const sig=t=>{
     const c=[];
-    if(P.topMode!=="cross" && t>=P.expire && counts[t]>=5 && counts[t-1]<5) c.push("出貨日");
+    if(P.topMode!=="cross" && t>=P.expire && cnt(t)>=P.distN && cnt(t-1)<P.distN && (!P.below50 || res.ma50[t]===null || rows[t].c<res.ma50[t])) c.push("出貨日");
     if(P.topMode!=="dist" && res.ma50[t-1]!==null && res.ma20[t]<res.ma50[t] && res.ma20[t-1]>=res.ma50[t-1]) c.push("死亡交叉");
     return c;
   };
   res.allTops=[];
-  for(let t=1;t<n;t++){ const c=sig(t); if(c.length) res.allTops.push({i:t,cause:c}); }
   res.cycles=[]; let state="up", cur=null, att=null;
+  const inpos=new Array(n).fill(true);  // 當天收盤後是否持有
   for(let t=1;t<n;t++){
+    const cs=sig(t);
+    if(cs.length) res.allTops.push({i:t,cause:cs});
     if(state==="up"){
-      const cs=sig(t);
       if(cs.length){
         cur={top:t,cause:cs,ftd:null}; res.cycles.push(cur); state="corr"; att=null;
       }
+      inpos[t]=state==="up";
       continue;
     }
+    inpos[t]=false;
     const up=rows[t].c>rows[t-1].c;
     if(!att){ if(up) att=newAtt(t); continue; }
     if(rows[t].l<att.low){ att=up?newAtt(t):null; continue; }
     const k=t-att.d1+1;
-    if(k>=4 && k<=8){
-      const pct=(rows[t].c/rows[t-1].c-1)*100, av=avgVol(t);
+    if(k>=4 && k<=P.ftdMax){
+      const pct=(rows[t].c/rows[t-1].c-1)*100;
       const big = pct>=P.ftdGain || (P.ftdAth && rows[t].c>pmax[t]);
-      if(av && big && rows[t].v>rows[t-1].v && rows[t].v>av){
-        cur.ftd=t; state="up"; att=null;
+      if(big && rows[t].v>rows[t-1].v){
+        cur.ftd=t; state="up"; att=null; lastFtd=t; inpos[t]=true;
       }
-    } else if(k>8){ att=up?newAtt(t):null; }
+    } else if(k>P.ftdMax){ att=up?newAtt(t):null; }
   }
+  res.inpos=inpos; res.lastFtd=lastFtd;
+  res.dist.forEach(d=>{ d.active = d.age<P.expire && d.rallyPct<P.rally && d.i>lastFtd; });
   return res;
 }
 
@@ -154,7 +161,7 @@ function render(){
   const shown = rows.slice(off);
   const a = analyze(rows);
   const zero = rows.filter(r=>!r.v).length > rows.length/2;
-  document.getElementById("note").textContent = zero ? "這個指數沒有成交量資料，無法判斷出貨日。可改用 DIA 的資料。" : "";
+  document.getElementById("note").textContent = zero ? "這個指數沒有成交量資料，無法判斷出貨日。" : "";
   candle.setData(shown.map(r=>({time:r.t,open:r.o,high:r.h,low:r.l,close:r.c})));
   vol.setData(shown.map(r=>({time:r.t,value:r.v,color:(r.c>=r.o?css("--up"):css("--down"))+"66"})));
   ma20S.setData(shown.map((r,k)=>({time:r.t,value:a.ma20[off+k]})).filter(x=>x.value!==null));
@@ -188,6 +195,15 @@ function render(){
   { const bi=rows.findIndex(r=>r.t>="2025-01-01"), last=rows[rows.length-1], y=document.getElementById("ytd");
     if(bi>0){ const base=rows[bi-1], chg=(last.c/base.c-1)*100;
       y.innerHTML=`自 2025/1/1 至今（${last.t}）累計漲跌：<b style="color:${chg>=0?css("--up"):css("--down")}">${fmt(chg)}</b>　<span style="color:var(--mute)">以 ${base.t} 收盤 ${base.c.toLocaleString()} 為基準，最新收盤 ${last.c.toLocaleString()}</span>`;
+      const bt=(b0)=>{ let s=1,h=1,pk=1,dd=0,tr=0;
+        for(let i=b0+1;i<rows.length;i++){ const r=rows[i].c/rows[i-1].c;
+          if(a.inpos[i-1]) s*=r; h*=r; pk=Math.max(pk,s); dd=Math.min(dd,s/pk-1);
+          if(a.inpos[i]&&!a.inpos[i-1]) tr++; }
+        return {s:(s-1)*100,h:(h-1)*100,dd:dd*100,tr:tr}; };
+      const col=x=>`<b style="color:${x>=0?css("--up"):css("--down")}">${fmt(x)}</b>`;
+      const r1=bt(bi-1), r5=bt(0);
+      const win=x=>x.s>=x.h?"贏過持有":"輸給持有";
+      y.innerHTML+=`<br>照訊號進出（頭部確立日收盤出場、漲勢確立日收盤進場）：自 2025/1/1 策略 ${col(r1.s)} vs 持有 ${col(r1.h)}，${win(r1)}，最大回撤 ${r1.dd.toFixed(2)}%，進場 ${r1.tr} 次；近 5 年（${rows[0].t} 起）策略 ${col(r5.s)} vs 持有 ${col(r5.h)}，${win(r5)}，最大回撤 ${r5.dd.toFixed(2)}%。目前${a.inpos[rows.length-1]?"持有中":"空手"}　<span style="color:var(--mute)">不計手續費與股息，空手報酬以 0% 計</span>`;
     } else y.textContent=""; }
   document.getElementById("tops").innerHTML = a.cycles.map((c,idx)=>{
     if(c.top<off) return "";
@@ -217,12 +233,12 @@ function build(){
 }
 
 fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
-  ALL=d; const names=Object.keys(d.data); current=names[0];
+  ALL=d; const names=Object.keys(d.data).filter(n=>SHOWN.includes(n)); current=names[0]; P.topMode=TOP_DEFAULT[current]||P.topMode;
   document.getElementById("updated").textContent="資料更新：" + new Date(d.updated).toLocaleString("zh-TW") + "　最新交易日：" + d.data[current].at(-1).t;
   const tabs=document.getElementById("tabs");
   names.forEach(n=>{const b=document.createElement("button");b.textContent=n;b.setAttribute("role","tab");
     b.setAttribute("aria-selected",n===current);
-    b.onclick=()=>{current=n;[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));render();chart.timeScale().fitContent();};
+    b.onclick=()=>{current=n; P.topMode=TOP_DEFAULT[n]||P.topMode; if(topSel) topSel.value=P.topMode;[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));render();chart.timeScale().fitContent();};
     tabs.appendChild(b);});
   const pr=document.getElementById("params");
   FIELDS.forEach(([k,label,step])=>{
@@ -233,8 +249,11 @@ fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
   { const l=document.createElement("label");l.textContent="收盤創歷史新高也算大漲";
     const c=document.createElement("input");c.type="checkbox";c.checked=P.ftdAth;c.style.width="20px";c.style.height="20px";
     c.onchange=()=>{P.ftdAth=c.checked;render();};l.appendChild(c);pr.appendChild(l); }
+  { const l=document.createElement("label");l.textContent="出貨日頭部需收盤跌破 MA50";
+    const c=document.createElement("input");c.type="checkbox";c.checked=P.below50;c.style.width="20px";c.style.height="20px";
+    c.onchange=()=>{P.below50=c.checked;render();};l.appendChild(c);pr.appendChild(l); }
   { const l=document.createElement("label");l.textContent="頭部確立條件";
-    const sel=document.createElement("select");
+    const sel=document.createElement("select"); topSel=sel;
     [["any","出貨日或死亡交叉"],["dist","只看出貨日"],["cross","只看 MA20/MA50 死亡交叉"]].forEach(([v,t])=>{
       const o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o);});
     sel.value=P.topMode; sel.onchange=()=>{P.topMode=sel.value;render();};
