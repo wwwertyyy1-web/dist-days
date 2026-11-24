@@ -58,6 +58,7 @@ h2{font-size:16px;margin:22px 0 8px}
   </div>
   <div class="params" id="params"></div>
   <h2>頭部確立與漲勢確立</h2>
+  <div id="ytd" style="font-size:14px;margin:-2px 0 8px"></div>
   <div class="hint">頭部確立：有效出貨日首次升到 5 個以上，或 MA20 向下穿過 MA50（死亡交叉），可在下方參數區切換。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 8 天，出現大漲（或收盤創歷史新高）、量比前一天增加、且量大於 50 日均量。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
   <div class="scroll"><table>
     <thead><tr><th>頭部確立日期</th><th>觸發條件</th><th>收盤</th><th>漲勢確立日期</th><th>收盤</th><th>下一個頭部確立日</th><th>漲勢確立後漲跌</th></tr></thead>
@@ -184,6 +185,10 @@ function render(){
   const v = document.getElementById("verdict");
   v.innerHTML = act.length>=5 ? '<span class="warn">五個以上，市場承壓</span>' : act.length>=3 ? "三到四個，需留意" : "";
   const fmt=x=>(x>=0?"+":"")+x.toFixed(2)+"%";
+  { const bi=rows.findIndex(r=>r.t>="2025-01-01"), last=rows[rows.length-1], y=document.getElementById("ytd");
+    if(bi>0){ const base=rows[bi-1], chg=(last.c/base.c-1)*100;
+      y.innerHTML=`自 2025/1/1 至今（${last.t}）累計漲跌：<b style="color:${chg>=0?css("--up"):css("--down")}">${fmt(chg)}</b>　<span style="color:var(--mute)">以 ${base.t} 收盤 ${base.c.toLocaleString()} 為基準，最新收盤 ${last.c.toLocaleString()}</span>`;
+    } else y.textContent=""; }
   document.getElementById("tops").innerHTML = a.cycles.map((c,idx)=>{
     if(c.top<off) return "";
     const top=rows[c.top], nxt=a.cycles[idx+1];
