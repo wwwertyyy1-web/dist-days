@@ -1,20 +1,22 @@
-"""每天抓 S&P 500 與 Nasdaq 日K（含成交量，從 2018-06-01 起；2019 年前的半年用來暖機算均線與訊號）存成 docs/data.json。
-失敗時保留舊檔，不會覆蓋成空資料。"""
-import json, sys, time, datetime as dt
+"""每天抓 S&P 500 與 Nasdaq 日K（含成交量，從 2018-06-01 起；2019 年前的半年用來暖機算均線與訊號），以及現金替代標的 BOXX、BIL 的還原收盤，存成 docs/data.json。
+失敗時保留舊檔，不會覆蓋成空資料。BOXX / BIL 抓不到時仍會寫出指數資料（能沿用舊的就沿用），網頁會把現金報酬改回 0%。"""
+import json, sys, time, datetime as dt, os
 import yfinance as yf
 
 SYMBOLS = {"S&P 500": "^GSPC", "Nasdaq": "^IXIC"}
-OUT = "docs/data.json"
+CASH = {"BOXX": "BOXX", "BIL": "BIL"}  # 現金部位用還原收盤（auto_adjust）；BOXX 2022/12 上市前用 BIL
+OUT = os.environ.get("DD_OUT", "docs/data.json")
 START = "2018-06-01"   # 網頁從 2019-01-01 開始回測，前面半年拿來算 MA200 與訊號
 
-def fetch(sym, tries=3):
+def fetch(sym, tries=3, auto_adjust=False, ohlc=True, min_rows=100):
+    need = ["Open", "High", "Low", "Close"] if ohlc else ["Close"]
     for k in range(tries):
         try:
-            df = yf.download(sym, start=START, auto_adjust=False, progress=False)
+            df = yf.download(sym, start=START, auto_adjust=auto_adjust, progress=False)
             if hasattr(df.columns, "get_level_values"):
                 df.columns = df.columns.get_level_values(0)
-            df = df.dropna(subset=["Open", "High", "Low", "Close"])
-            if len(df) > 100:
+            df = df.dropna(subset=need)
+            if len(df) > min_rows:
                 return df
         except Exception as e:
             print(f"{sym} 第{k+1}次失敗: {e}", file=sys.stderr)
@@ -35,5 +37,28 @@ for name, sym in SYMBOLS.items():
     ]
     print(name, len(df), "筆，最新", out["data"][name][-1]["t"])
 
+old = {}
+if os.path.exists(OUT):
+    try:
+        old = json.load(open(OUT)).get("data") or {}
+    except Exception:
+        old = {}
+
+for name, sym in CASH.items():
+    df = fetch(sym, auto_adjust=True, ohlc=False, min_rows=20)
+    if df is None:
+        if isinstance(old.get(name), list) and len(old[name]) > 10:
+            out["data"][name] = old[name]
+            print(f"抓不到 {name}，沿用舊資料 {len(old[name])} 筆", file=sys.stderr)
+        else:
+            print(f"抓不到 {name}，略過（網頁現金報酬改回 0%）", file=sys.stderr)
+        continue
+    out["data"][name] = [
+        {"t": d.strftime("%Y-%m-%d"), "c": round(float(r.Close), 4)}
+        for d, r in df.iterrows()
+    ]
+    print(name, len(df), "筆，最新", out["data"][name][-1]["t"])
+
+os.makedirs(os.path.dirname(OUT) or ".", exist_ok=True)
 with open(OUT, "w") as f:
     json.dump(out, f, separators=(",", ":"))
