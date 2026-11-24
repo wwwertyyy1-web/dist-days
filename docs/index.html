@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>美股大盤進出策略</title>
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4}
-@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff}}
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--rise:#1f9d62;--fall:#d6322e;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--rise:#34b57a;--fall:#ef5350;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Noto Sans TC",system-ui,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
@@ -25,6 +25,8 @@ h1{font-size:22px;margin:0 0 4px}
 .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:18px}
 .params label{display:flex;flex-direction:column;font-size:12.5px;color:var(--mute);gap:3px}
 .params input{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)}
+#params .note{grid-column:1/-1;font-size:12.5px;color:var(--mute);margin:0 0 2px}
+#params .val{color:var(--ink);font-size:15px;font-weight:600;padding:2px 0}
 table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:14px}
 th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
@@ -59,7 +61,7 @@ h2{font-size:16px;margin:22px 0 8px}
   <div class="params" id="params"></div>
   <h2>頭部確立與漲勢確立</h2>
   <div id="ytd" style="font-size:14px;margin:-2px 0 8px">自 <input type="date" class="baseDate" value="2025-01-01" aria-label="累計漲跌起算日" style="font:inherit;font-size:13px;padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)"> <span class="baseMsg" style="color:var(--down);font-size:13px"></span><span id="ytdA"></span><div id="ytdB"></div></div>
-  <div class="hint">頭部確立：有效出貨日（漲勢確立後重新計算）升到 6 個的那一天，收盤在 MA50 之下，或 MA20 向下穿過 MA50（死亡交叉）。預設條件依指數不同：S&amp;P 500 只看出貨日，Nasdaq 出貨日和死亡交叉都看；切換分頁會套用該指數的預設，也可在下方參數區自行改。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 15 天，出現大漲（或收盤創歷史新高），且量比前一天增加。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
+  <div class="hint">頭部確立：有效出貨日（漲勢確立後重新計算）升到 6 個的那一天，收盤在 MA50 之下，或 MA20 向下穿過 MA50（死亡交叉）。條件依指數不同：S&amp;P 500 只看出貨日，Nasdaq 出貨日和死亡交叉都看；切換分頁會套用該指數的設定。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 15 天，出現大漲（或收盤創歷史新高），且量比前一天增加。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
   <div class="scroll"><table>
     <thead><tr><th>頭部確立日期</th><th>觸發條件</th><th>收盤</th><th>反彈第一天</th><th>漲勢確立日期</th><th>收盤</th><th>下一個頭部確立日</th><th>漲勢確立後漲跌</th></tr></thead>
     <tbody id="tops"></tbody>
@@ -96,7 +98,8 @@ h2{font-size:16px;margin:22px 0 8px}
 <script>
 const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5, distN:6, below50:true, ftdGain:1.25, ftdMax:15, ftdAth:true, topMode:"dist"};
 const TOP_DEFAULT = {"S&P 500":"dist", "Nasdaq":"any"};  // 各指數的頭部確立條件預設
-let topSel = null;
+const TOP_LABEL = {any:"出貨日或死亡交叉",dist:"只看出貨日",cross:"只看 MA20/MA50 死亡交叉"};
+let topModeEl = null;  // 參數區「頭部確立條件」的固定顯示，切換分頁時更新
 const SHOWN = ["S&P 500","Nasdaq"];  // 只顯示這兩個指數（資料裡若還有 Dow 會略過）
 const SHOW = 400;            // 找不到起始日時的備用天數
 let START = "1900-01-01";  // 圖表與表格從這天開始顯示（載入後設為資料第一天，也就是顯示完整 5 年）
@@ -196,7 +199,7 @@ function render(){
   const zero = rows.filter(r=>!r.v).length > rows.length/2;
   document.getElementById("note").textContent = zero ? "這個指數沒有成交量資料，無法判斷出貨日。" : "";
   candle.setData(shown.map(r=>({time:r.t,open:r.o,high:r.h,low:r.l,close:r.c})));
-  vol.setData(shown.map(r=>({time:r.t,value:r.v,color:(r.c>=r.o?css("--up"):css("--down"))+"66"})));
+  vol.setData(shown.map(r=>({time:r.t,value:r.v,color:(r.c>=r.o?css("--rise"):css("--fall"))+"66"})));
   ma20S.setData(shown.map((r,k)=>({time:r.t,value:a.ma20[off+k]})).filter(x=>x.value!==null));
   ma50S.setData(shown.map((r,k)=>({time:r.t,value:a.ma50[off+k]})).filter(x=>x.value!==null));
   const m = [];
@@ -229,9 +232,9 @@ function render(){
   const fmt=x=>(x>=0?"+":"")+x.toFixed(2)+"%";
   { const b0=baseIdx(rows), last=rows[rows.length-1], yA=document.getElementById("ytdA"), yB=document.getElementById("ytdB"), BL=baseLabel(rows);
     if(rows.length>2){ const base=rows[b0], chg=(last.c/base.c-1)*100;
-      yA.innerHTML=` 至今（${last.t}）累計漲跌：<b style="color:${chg>=0?css("--up"):css("--down")}">${fmt(chg)}</b>　<span style="color:var(--mute)">以 ${base.t} 收盤 ${base.c.toLocaleString()} 為基準，最新收盤 ${last.c.toLocaleString()}</span>`;
+      yA.innerHTML=` 至今（${last.t}）累計漲跌：<b style="color:${chg>=0?css("--rise"):css("--fall")}">${fmt(chg)}</b>　<span style="color:var(--mute)">以 ${base.t} 收盤 ${base.c.toLocaleString()} 為基準，最新收盤 ${last.c.toLocaleString()}</span>`;
       const bt=b=>stratStats(rows,a.inpos,b);
-      const col=x=>`<b style="color:${x>=0?css("--up"):css("--down")}">${fmt(x)}</b>`;
+      const col=x=>`<b style="color:${x>=0?css("--rise"):css("--fall")}">${fmt(x)}</b>`;
       const r1=bt(b0), r5=bt(0);
       const win=x=>x.s>=x.h?"贏過持有":"輸給持有";
       yB.innerHTML=`照訊號進出（頭部確立日收盤出場、漲勢確立日收盤進場）：自 ${BL} 策略 ${col(r1.s)} vs 持有 ${col(r1.h)}，${win(r1)}，最大回撤 ${r1.dd.toFixed(2)}%，進場 ${r1.tr} 次；近 5 年（${rows[0].t} 起）策略 ${col(r5.s)} vs 持有 ${col(r5.h)}，${win(r5)}，最大回撤 ${r5.dd.toFixed(2)}%。目前${a.inpos[rows.length-1]?"持有中":"空手"}　<span style="color:var(--mute)">不計手續費與股息，空手報酬以 0% 計</span>`;
@@ -241,7 +244,7 @@ function render(){
     const top=rows[c.top], nxt=a.cycles[idx+1];
     if(c.ftd===null) return `<tr><td>${top.t}</td><td>${c.cause.join("＋")}</td><td>${top.c.toLocaleString()}</td><td>${idx===a.cycles.length-1 && a.att!==null ? rows[a.att].t+"（進行中）" : "–"}</td><td colspan="4" style="color:var(--mute)">尚未出現漲勢確立</td></tr>`;
     const f=rows[c.ftd], end=nxt?rows[nxt.top]:rows[rows.length-1], chg=(end.c/f.c-1)*100;
-    return `<tr><td>${top.t}</td><td>${c.cause.join("＋")}</td><td>${top.c.toLocaleString()}</td><td>${rows[c.d1].t}</td><td>${f.t}</td><td>${f.c.toLocaleString()}</td><td>${nxt?end.t:"尚未出現"}</td><td>${fmt(chg)}${nxt?"":"（至今）"}</td></tr>`;
+    return `<tr><td>${top.t}</td><td>${c.cause.join("＋")}</td><td>${top.c.toLocaleString()}</td><td>${rows[c.d1].t}</td><td>${f.t}</td><td>${f.c.toLocaleString()}</td><td>${nxt?end.t:"尚未出現"}</td><td style="color:${chg>=0?css("--rise"):css("--fall")}">${fmt(chg)}${nxt?"":"（至今）"}</td></tr>`;
   }).reverse().join("") || '<tr><td colspan="8" style="text-align:center;color:var(--mute)">這段期間沒有出現過</td></tr>';
   document.getElementById("rows").innerHTML = act.slice().reverse().map(d=>{
     const r=rows[d.i];
@@ -287,7 +290,7 @@ function renderRot(){
   const b25=baseIdx(sp), BL=baseLabel(sp);
   document.querySelectorAll(".baseLbl").forEach(x=>x.textContent=BL);
   const fmt=x=>(x>=0?"+":"")+x.toFixed(2)+"%";
-  const col=x=>`<b style="color:${x>=0?css("--up"):css("--down")}">${fmt(x)}</b>`;
+  const col=x=>`<b style="color:${x>=0?css("--rise"):css("--fall")}">${fmt(x)}</b>`;
   const one25=rotation(b25,false), one5=rotation(0,false);
   const two25=R.lev2?rotation(b25,true):null, two5=R.lev2?rotation(0,true):null;
   const nqB=nqRows.findIndex(r=>r.t===sp[b25].t);
@@ -347,8 +350,8 @@ function build(){
     layout:{background:{color:css("--panel")},textColor:css("--mute")},
     grid:{vertLines:{color:css("--line")},horzLines:{color:css("--line")}},
     rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line")},autoSize:true});
-  candle = chart.addCandlestickSeries({upColor:css("--up"),downColor:css("--down"),
-    borderUpColor:css("--up"),borderDownColor:css("--down"),wickUpColor:css("--up"),wickDownColor:css("--down")});
+  candle = chart.addCandlestickSeries({upColor:css("--rise"),downColor:css("--fall"),
+    borderUpColor:css("--rise"),borderDownColor:css("--fall"),wickUpColor:css("--rise"),wickDownColor:css("--fall")});
   candle.priceScale().applyOptions({scaleMargins:{top:0.08,bottom:0.25}});
   ma20S = chart.addLineSeries({color:css("--stall"),lineWidth:1,priceLineVisible:false,lastValueVisible:false});
   ma50S = chart.addLineSeries({color:css("--ftd"),lineWidth:1,priceLineVisible:false,lastValueVisible:false});
@@ -362,7 +365,7 @@ fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
   const tabs=document.getElementById("tabs");
   names.forEach(n=>{const b=document.createElement("button");b.textContent=n;b.setAttribute("role","tab");
     b.setAttribute("aria-selected",n===current);
-    b.onclick=()=>{showView(false); current=n; P.topMode=TOP_DEFAULT[n]||P.topMode; if(topSel) topSel.value=P.topMode;[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));render();chart.timeScale().fitContent();};
+    b.onclick=()=>{showView(false); current=n; P.topMode=TOP_DEFAULT[n]||P.topMode; if(topModeEl) topModeEl.textContent=TOP_LABEL[P.topMode]||P.topMode;[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));render();chart.timeScale().fitContent();};
     tabs.appendChild(b);});
   if(names.includes("S&P 500") && d.data["Nasdaq"]){
     const b=document.createElement("button");b.textContent="攻守交換";b.setAttribute("role","tab");b.setAttribute("aria-selected",false);
@@ -370,24 +373,17 @@ fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
     tabs.appendChild(b); buildRotParams();
   }
   const pr=document.getElementById("params");
-  FIELDS.forEach(([k,label,step])=>{
+  const note=document.createElement("p"); note.className="note";
+  note.textContent="以下為目前所知的最佳策略參數，固定顯示，不可調整。";
+  pr.appendChild(note);
+  const addVal=(label,text)=>{
     const l=document.createElement("label");l.textContent=label;
-    const i=document.createElement("input");i.type="number";i.step=step;i.value=P[k];
-    i.oninput=()=>{const x=parseFloat(i.value);if(!isNaN(x)){P[k]=x;render();}};
-    l.appendChild(i);pr.appendChild(l);});
-  { const l=document.createElement("label");l.textContent="收盤創歷史新高也算大漲";
-    const c=document.createElement("input");c.type="checkbox";c.checked=P.ftdAth;c.style.width="20px";c.style.height="20px";
-    c.onchange=()=>{P.ftdAth=c.checked;render();};l.appendChild(c);pr.appendChild(l); }
-  { const l=document.createElement("label");l.textContent="出貨日頭部需收盤跌破 MA50";
-    const c=document.createElement("input");c.type="checkbox";c.checked=P.below50;c.style.width="20px";c.style.height="20px";
-    c.onchange=()=>{P.below50=c.checked;render();};l.appendChild(c);pr.appendChild(l); }
-  { const l=document.createElement("label");l.textContent="頭部確立條件";
-    const sel=document.createElement("select"); topSel=sel;
-    [["any","出貨日或死亡交叉"],["dist","只看出貨日"],["cross","只看 MA20/MA50 死亡交叉"]].forEach(([v,t])=>{
-      const o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o);});
-    sel.value=P.topMode; sel.onchange=()=>{P.topMode=sel.value;render();};
-    sel.style.cssText="font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)";
-    l.appendChild(sel);pr.appendChild(l); }
+    const v=document.createElement("span");v.className="val";v.textContent=text;
+    l.appendChild(v);pr.appendChild(l); return v;
+  };
+  FIELDS.forEach(([k,label])=>addVal(label,P[k]));
+  [["ftdAth","收盤創歷史新高也算大漲"],["below50","出貨日頭部需收盤跌破 MA50"]].forEach(([k,label])=>addVal(label,P[k]?"是":"否"));
+  topModeEl=addVal("頭部確立條件", TOP_LABEL[P.topMode]||P.topMode);
   { // 起算日只有一個（BASE_DATE），指數分頁和攻守交換分頁的日期欄位互相同步
     const inps=[...document.querySelectorAll(".baseDate")], msgs=[...document.querySelectorAll(".baseMsg")], sp0=d.data[current];
     const lo=sp0[1].t, hi=sp0.at(-1).t; inps.forEach(x=>{x.min=lo; x.max=hi;});
