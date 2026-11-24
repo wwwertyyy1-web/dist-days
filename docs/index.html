@@ -56,11 +56,12 @@ h2{font-size:16px;margin:22px 0 8px}
   </div>
   <div class="params" id="params"></div>
   <h2>頭部確立與漲勢確立</h2>
-  <div class="hint">頭部確立：有效出貨日首次升到 5 個以上。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 8 天，出現大漲、量比前一天增加、且量大於50 日均量。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
+  <div class="hint">頭部確立：有效出貨日首次升到 5 個以上。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 8 天，出現大漲（或收盤創歷史新高）、量比前一天增加、且量大於 50 日均量。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
   <div class="scroll"><table>
     <thead><tr><th>頭部確立日期</th><th>收盤</th><th>漲勢確立日期</th><th>收盤</th><th>下一個頭部確立日</th><th>漲勢確立後漲跌</th></tr></thead>
     <tbody id="tops"></tbody>
   </table></div>
+  <div class="hint" id="extraTops" style="margin-top:8px"></div>
   <h2>目前有效的出貨日</h2>
   <div class="scroll"><table>
     <thead><tr><th>日期</th><th>單日跌幅</th><th>收盤</th><th>距今交易日</th><th>此後最大漲幅</th></tr></thead>
@@ -69,7 +70,7 @@ h2{font-size:16px;margin:22px 0 8px}
 </main>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5, ftdGain:1.25, ftdAvg:50};
+const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5, ftdGain:1.25, ftdAvg:50, ftdAth:true};
 const SHOW = 400;
 const FIELDS = [
   ["drop","出貨日跌幅 ≥（%）",0.05],["stallMax","停滯日漲幅 ≤（%）",0.05],
@@ -107,6 +108,9 @@ function analyze(rows){
   res.counts=counts;
   const avgVol=i=>{ if(i<P.ftdAvg) return null; let sum=0; for(let k=i-P.ftdAvg;k<i;k++) sum+=rows[k].v; return sum/P.ftdAvg; };
   const newAtt=t=>({d1:t,low:Math.min(rows[t].l,rows[t-1].l)});
+  const pmax=[]; { let m=-Infinity; rows.forEach((r,i)=>{pmax[i]=m; m=Math.max(m,r.c);}); }
+  res.allTops=[];
+  for(let t=P.expire;t<n;t++) if(counts[t]>=5 && counts[t-1]<5) res.allTops.push(t);
   res.cycles=[]; let state="up", cur=null, att=null;
   for(let t=1;t<n;t++){
     if(state==="up"){
@@ -121,7 +125,8 @@ function analyze(rows){
     const k=t-att.d1+1;
     if(k>=4 && k<=8){
       const pct=(rows[t].c/rows[t-1].c-1)*100, av=avgVol(t);
-      if(av && pct>=P.ftdGain && rows[t].v>rows[t-1].v && rows[t].v>av){
+      const big = pct>=P.ftdGain || (P.ftdAth && rows[t].c>pmax[t]);
+      if(av && big && rows[t].v>rows[t-1].v && rows[t].v>av){
         cur.ftd=t; state="up"; att=null;
       }
     } else if(k>8){ att=up?newAtt(t):null; }
@@ -148,6 +153,12 @@ function render(){
     m.push({time:rows[c.top].t,position:"belowBar",shape:"square",color:css("--up"),text:"頭部"});
     if(c.ftd!==null && c.ftd>=off) m.push({time:rows[c.ftd].t,position:"belowBar",shape:"arrowUp",color:css("--ftd"),text:"漲勢"});
   });
+  const cycTops=new Set(a.cycles.map(c=>c.top));
+  const extra=a.allTops.filter(t=>!cycTops.has(t) && t>=off);
+  extra.forEach(t=>m.push({time:rows[t].t,position:"belowBar",shape:"square",color:css("--gone"),text:"頭"}));
+  document.getElementById("extraTops").textContent = extra.length
+    ? "修正期間（尚未漲勢確立）再次升到 5 個以上的日期，不另起一列，圖上以灰色「頭」標示：" + extra.map(t=>rows[t].t).join("、")
+    : "";
   m.sort((x,y)=>x.time<y.time?-1:1);
   candle.setMarkers(m);
 
@@ -197,6 +208,9 @@ fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
     const i=document.createElement("input");i.type="number";i.step=step;i.value=P[k];
     i.oninput=()=>{const x=parseFloat(i.value);if(!isNaN(x)){P[k]=x;render();}};
     l.appendChild(i);pr.appendChild(l);});
+  { const l=document.createElement("label");l.textContent="收盤創歷史新高也算大漲";
+    const c=document.createElement("input");c.type="checkbox";c.checked=P.ftdAth;c.style.width="20px";c.style.height="20px";
+    c.onchange=()=>{P.ftdAth=c.checked;render();};l.appendChild(c);pr.appendChild(l); }
   build();render();chart.timeScale().fitContent();
 }).catch(()=>{document.getElementById("updated").textContent="讀不到 data.json，請先執行 fetch.py 或等待 GitHub Actions 跑完。";});
 </script>
