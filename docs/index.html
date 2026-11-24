@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>出貨日・停滯日</title>
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9}
-@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573}}
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Noto Sans TC",system-ui,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
@@ -51,13 +51,14 @@ h2{font-size:16px;margin:22px 0 8px}
     <span><i style="background:var(--dist)"></i>有效出貨日 D</span>
     <span><i style="background:var(--gone)"></i>已失效出貨日</span>
     <span><i style="background:var(--stall)"></i>停滯日 S</span>
-    <span><i style="background:var(--up)"></i>頭部確立（有效出貨日首次達 5 個）</span>
+    <span><i style="background:var(--up)"></i>頭部確立 ■</span>
+    <span><i style="background:var(--ftd)"></i>漲勢確立 ▲</span>
   </div>
   <div class="params" id="params"></div>
-  <h2>頭部確立日期</h2>
-  <div class="hint">有效出貨日數量從 4 個以下首次升到 5 個以上的那一天。</div>
+  <h2>頭部確立與漲勢確立</h2>
+  <div class="hint">頭部確立：有效出貨日首次升到 5 個以上。漲勢確立：頭部確立後，反彈第 1 天（收高）起算的第 4 到第 8 天，出現大漲、量比前一天增加、且量大於50 日均量。最後一欄是從漲勢確立日算到下一個頭部確立日的漲跌。</div>
   <div class="scroll"><table>
-    <thead><tr><th>確立日期</th><th>收盤</th><th>當日有效出貨日</th><th>至今漲跌</th></tr></thead>
+    <thead><tr><th>頭部確立日期</th><th>收盤</th><th>漲勢確立日期</th><th>收盤</th><th>下一個頭部確立日</th><th>漲勢確立後漲跌</th></tr></thead>
     <tbody id="tops"></tbody>
   </table></div>
   <h2>目前有效的出貨日</h2>
@@ -68,10 +69,12 @@ h2{font-size:16px;margin:22px 0 8px}
 </main>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5};
+const P = {drop:0.2, stallMax:0.4, stallPos:50, expire:25, rally:5, ftdGain:1.25, ftdAvg:50};
+const SHOW = 400;
 const FIELDS = [
   ["drop","出貨日跌幅 ≥（%）",0.05],["stallMax","停滯日漲幅 ≤（%）",0.05],
-  ["stallPos","停滯日收盤位置 ＜ 區間（%）",5],["expire","失效天數（交易日）",1],["rally","失效漲幅（%）",0.5]
+  ["stallPos","停滯日收盤位置 ＜ 區間（%）",5],["expire","失效天數（交易日）",1],["rally","失效漲幅（%）",0.5],
+  ["ftdGain","漲勢確立漲幅 ≥（%）",0.05],["ftdAvg","均量天數（交易日）",1]
 ];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 let ALL, current, chart, candle, vol;
@@ -102,26 +105,49 @@ function analyze(rows){
     }
   });
   res.counts=counts;
-  res.tops=[];
-  for(let t=P.expire;t<n;t++){
-    if(counts[t]>=5 && counts[t-1]<5) res.tops.push({i:t,count:counts[t],chg:(rows[last].c/rows[t].c-1)*100});
+  const avgVol=i=>{ if(i<P.ftdAvg) return null; let sum=0; for(let k=i-P.ftdAvg;k<i;k++) sum+=rows[k].v; return sum/P.ftdAvg; };
+  const newAtt=t=>({d1:t,low:Math.min(rows[t].l,rows[t-1].l)});
+  res.cycles=[]; let state="up", cur=null, att=null;
+  for(let t=1;t<n;t++){
+    if(state==="up"){
+      if(t>=P.expire && counts[t]>=5 && counts[t-1]<5){
+        cur={top:t,ftd:null}; res.cycles.push(cur); state="corr"; att=null;
+      }
+      continue;
+    }
+    const up=rows[t].c>rows[t-1].c;
+    if(!att){ if(up) att=newAtt(t); continue; }
+    if(rows[t].l<att.low){ att=up?newAtt(t):null; continue; }
+    const k=t-att.d1+1;
+    if(k>=4 && k<=8){
+      const pct=(rows[t].c/rows[t-1].c-1)*100, av=avgVol(t);
+      if(av && pct>=P.ftdGain && rows[t].v>rows[t-1].v && rows[t].v>av){
+        cur.ftd=t; state="up"; att=null;
+      }
+    } else if(k>8){ att=up?newAtt(t):null; }
   }
   return res;
 }
 
 function render(){
-  const rows = ALL.data[current].slice(-300);
+  const rows = ALL.data[current];            // 完整資料，用來計算
+  const off = Math.max(0, rows.length-SHOW);  // 只顯示最近 SHOW 個交易日
+  const shown = rows.slice(off);
   const a = analyze(rows);
   const zero = rows.filter(r=>!r.v).length > rows.length/2;
   document.getElementById("note").textContent = zero ? "這個指數沒有成交量資料，無法判斷出貨日。可改用 DIA 的資料。" : "";
-  candle.setData(rows.map(r=>({time:r.t,open:r.o,high:r.h,low:r.l,close:r.c})));
-  vol.setData(rows.map(r=>({time:r.t,value:r.v,color:(r.c>=r.o?css("--up"):css("--down"))+"66"})));
+  candle.setData(shown.map(r=>({time:r.t,open:r.o,high:r.h,low:r.l,close:r.c})));
+  vol.setData(shown.map(r=>({time:r.t,value:r.v,color:(r.c>=r.o?css("--up"):css("--down"))+"66"})));
   const m = [];
-  a.dist.forEach(d=>m.push({time:rows[d.i].t,position:"aboveBar",shape:"arrowDown",
+  a.dist.filter(d=>d.i>=off).forEach(d=>m.push({time:rows[d.i].t,position:"aboveBar",shape:"arrowDown",
     color:d.active?css("--dist"):css("--gone"),text:d.active?"D":""}));
-  a.stall.forEach(s=>m.push({time:rows[s.i].t,position:"aboveBar",shape:"circle",
+  a.stall.filter(x=>x.i>=off).forEach(s=>m.push({time:rows[s.i].t,position:"aboveBar",shape:"circle",
     color:css("--stall"),text:s.age<P.expire?"S":""}));
-  a.tops.forEach(t=>m.push({time:rows[t.i].t,position:"belowBar",shape:"arrowUp",color:css("--up"),text:"頭部"}));
+  a.cycles.forEach(c=>{
+    if(c.top<off) return;
+    m.push({time:rows[c.top].t,position:"belowBar",shape:"square",color:css("--up"),text:"頭部"});
+    if(c.ftd!==null && c.ftd>=off) m.push({time:rows[c.ftd].t,position:"belowBar",shape:"arrowUp",color:css("--ftd"),text:"漲勢"});
+  });
   m.sort((x,y)=>x.time<y.time?-1:1);
   candle.setMarkers(m);
 
@@ -131,10 +157,14 @@ function render(){
   document.getElementById("stallCount").textContent = a.stall.filter(s=>s.age<P.expire).length;
   const v = document.getElementById("verdict");
   v.innerHTML = act.length>=5 ? '<span class="warn">五個以上，市場承壓</span>' : act.length>=3 ? "三到四個，需留意" : "";
-  document.getElementById("tops").innerHTML = a.tops.slice().reverse().map(t=>{
-    const r=rows[t.i];
-    return `<tr><td>${r.t}</td><td>${r.c.toLocaleString()}</td><td>${t.count}</td><td>${t.chg>=0?"+":""}${t.chg.toFixed(2)}%</td></tr>`;
-  }).join("") || '<tr><td colspan="4" style="text-align:center;color:var(--mute)">這段期間沒有出現過</td></tr>';
+  const fmt=x=>(x>=0?"+":"")+x.toFixed(2)+"%";
+  document.getElementById("tops").innerHTML = a.cycles.map((c,idx)=>{
+    if(c.top<off) return "";
+    const top=rows[c.top], nxt=a.cycles[idx+1];
+    if(c.ftd===null) return `<tr><td>${top.t}</td><td>${top.c.toLocaleString()}</td><td colspan="4" style="color:var(--mute)">尚未出現漲勢確立</td></tr>`;
+    const f=rows[c.ftd], end=nxt?rows[nxt.top]:rows[rows.length-1], chg=(end.c/f.c-1)*100;
+    return `<tr><td>${top.t}</td><td>${top.c.toLocaleString()}</td><td>${f.t}</td><td>${f.c.toLocaleString()}</td><td>${nxt?end.t:"尚未出現"}</td><td>${fmt(chg)}${nxt?"":"（至今）"}</td></tr>`;
+  }).reverse().join("") || '<tr><td colspan="6" style="text-align:center;color:var(--mute)">這段期間沒有出現過</td></tr>';
   document.getElementById("rows").innerHTML = act.slice().reverse().map(d=>{
     const r=rows[d.i];
     return `<tr><td>${r.t}</td><td>${d.pct.toFixed(2)}%</td><td>${r.c.toLocaleString()}</td><td>${d.age}</td><td>${d.rallyPct.toFixed(2)}%</td></tr>`;
