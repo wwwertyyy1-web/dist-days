@@ -3,7 +3,7 @@
 import json, sys, time, datetime as dt
 import yfinance as yf
 
-SYMBOLS = {"S&P 500": "^GSPC", "Nasdaq": "^IXIC", "Dow": "^DJI"}
+SYMBOLS = {"S&P 500": "^GSPC", "Nasdaq": "^IXIC"}
 OUT = "docs/data.json"
 
 def fetch(sym, tries=3):
