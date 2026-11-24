@@ -30,6 +30,8 @@ th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
 th{color:var(--mute);font-weight:500;font-size:12.5px}
 .scroll{overflow-x:auto}
+h2{font-size:16px;margin:22px 0 8px}
+.hint{color:var(--mute);font-size:13px;margin:-4px 0 8px}
 #note{color:var(--up);font-size:13px;margin-bottom:10px}
 </style>
 </head>
@@ -49,10 +51,18 @@ th{color:var(--mute);font-weight:500;font-size:12.5px}
     <span><i style="background:var(--dist)"></i>有效出貨日 D</span>
     <span><i style="background:var(--gone)"></i>已失效出貨日</span>
     <span><i style="background:var(--stall)"></i>停滯日 S</span>
+    <span><i style="background:var(--up)"></i>頭部確立（有效出貨日首次達 5 個）</span>
   </div>
   <div class="params" id="params"></div>
+  <h2>頭部確立日期</h2>
+  <div class="hint">有效出貨日數量從 4 個以下首次升到 5 個以上的那一天。</div>
   <div class="scroll"><table>
-    <thead><tr><th>有效出貨日</th><th>單日跌幅</th><th>收盤</th><th>距今交易日</th><th>此後最大漲幅</th></tr></thead>
+    <thead><tr><th>確立日期</th><th>收盤</th><th>當日有效出貨日</th><th>至今漲跌</th></tr></thead>
+    <tbody id="tops"></tbody>
+  </table></div>
+  <h2>目前有效的出貨日</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>日期</th><th>單日跌幅</th><th>收盤</th><th>距今交易日</th><th>此後最大漲幅</th></tr></thead>
     <tbody id="rows"></tbody>
   </table></div>
 </main>
@@ -82,11 +92,25 @@ function analyze(rows){
       res.stall.push({i,age:last-i});
     }
   }
+  const counts = new Array(n).fill(0);
+  res.dist.forEach(d=>{
+    let mx=-Infinity;
+    for(let t=d.i;t<n && t-d.i<P.expire;t++){
+      mx=Math.max(mx,rows[t].c);
+      if(mx>=rows[d.i].c*(1+P.rally/100)) break;
+      counts[t]++;
+    }
+  });
+  res.counts=counts;
+  res.tops=[];
+  for(let t=P.expire;t<n;t++){
+    if(counts[t]>=5 && counts[t-1]<5) res.tops.push({i:t,count:counts[t],chg:(rows[last].c/rows[t].c-1)*100});
+  }
   return res;
 }
 
 function render(){
-  const rows = ALL.data[current].slice(-260);
+  const rows = ALL.data[current].slice(-300);
   const a = analyze(rows);
   const zero = rows.filter(r=>!r.v).length > rows.length/2;
   document.getElementById("note").textContent = zero ? "這個指數沒有成交量資料，無法判斷出貨日。可改用 DIA 的資料。" : "";
@@ -97,6 +121,7 @@ function render(){
     color:d.active?css("--dist"):css("--gone"),text:d.active?"D":""}));
   a.stall.forEach(s=>m.push({time:rows[s.i].t,position:"aboveBar",shape:"circle",
     color:css("--stall"),text:s.age<P.expire?"S":""}));
+  a.tops.forEach(t=>m.push({time:rows[t.i].t,position:"belowBar",shape:"arrowUp",color:css("--up"),text:"頭部"}));
   m.sort((x,y)=>x.time<y.time?-1:1);
   candle.setMarkers(m);
 
@@ -106,6 +131,10 @@ function render(){
   document.getElementById("stallCount").textContent = a.stall.filter(s=>s.age<P.expire).length;
   const v = document.getElementById("verdict");
   v.innerHTML = act.length>=5 ? '<span class="warn">五個以上，市場承壓</span>' : act.length>=3 ? "三到四個，需留意" : "";
+  document.getElementById("tops").innerHTML = a.tops.slice().reverse().map(t=>{
+    const r=rows[t.i];
+    return `<tr><td>${r.t}</td><td>${r.c.toLocaleString()}</td><td>${t.count}</td><td>${t.chg>=0?"+":""}${t.chg.toFixed(2)}%</td></tr>`;
+  }).join("") || '<tr><td colspan="4" style="text-align:center;color:var(--mute)">這段期間沒有出現過</td></tr>';
   document.getElementById("rows").innerHTML = act.slice().reverse().map(d=>{
     const r=rows[d.i];
     return `<tr><td>${r.t}</td><td>${d.pct.toFixed(2)}%</td><td>${r.c.toLocaleString()}</td><td>${d.age}</td><td>${d.rallyPct.toFixed(2)}%</td></tr>`;
