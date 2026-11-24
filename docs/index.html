@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>美股大盤進出策略</title>
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--rise:#1f9d62;--fall:#d6322e;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4}
-@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--rise:#34b57a;--fall:#ef5350;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff}}
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--rise:#1f9d62;--fall:#d6322e;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4;--fed-hike:rgba(214,150,50,.20);--fed-cut:rgba(70,130,190,.18)}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--rise:#34b57a;--fall:#ef5350;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff;--fed-hike:rgba(214,150,50,.26);--fed-cut:rgba(80,160,220,.24)}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Noto Sans TC",system-ui,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
@@ -21,7 +21,7 @@ h1{font-size:22px;margin:0 0 4px}
 .warn{color:var(--up);font-weight:600}
 #chart{height:480px;background:var(--panel);border:1px solid var(--line);border-radius:8px}
 .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--mute);margin:10px 0 18px}
-.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}.legend i.band{border-radius:2px;width:14px;height:10px}
 .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:18px}
 .params label{display:flex;flex-direction:column;font-size:12.5px;color:var(--mute);gap:3px}
 .params input{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)}
@@ -57,6 +57,8 @@ h2{font-size:16px;margin:22px 0 8px}
     <span><i style="background:var(--ftd)"></i>漲勢確立 ▲</span>
     <span><i style="background:var(--stall)"></i>MA20</span>
     <span><i style="background:var(--ftd)"></i>MA50</span>
+    <span><i class="band" style="background:var(--fed-hike)"></i>底色：橙＝聯準會升息循環（第一次升息至第一次降息前）</span>
+    <span><i class="band" style="background:var(--fed-cut)"></i>藍＝降息循環（第一次降息至第一次升息前）</span>
   </div>
   <div class="params" id="params"></div>
   <h2>頭部確立與漲勢確立</h2>
@@ -84,6 +86,8 @@ h2{font-size:16px;margin:22px 0 8px}
       <span><b style="color:#7a5c00">▼</b> 換成標普</span>
       <span id="rlegCash"><b style="color:var(--fall)">■</b> 換成 BOXX</span>
       <span id="rlegTp" style="display:none"><b style="color:var(--stall)">●</b> 停利換回1倍</span>
+      <span><i class="band" style="background:var(--fed-hike)"></i>底色：橙＝聯準會升息循環（第一次升息至第一次降息前）</span>
+      <span><i class="band" style="background:var(--fed-cut)"></i>藍＝降息循環（第一次降息至第一次升息前）</span>
     </div>
     <div class="params" id="rparams"></div>
     <h2>最佳策略結果</h2>
@@ -113,6 +117,30 @@ const FROM = "2007-01-01";  // 回測與圖表的起點；之前的資料只拿�
 function fullFirst(rows){ const f=rows.findIndex(r=>r.t>=FROM); return f<0?0:f; }       // 圖表第一天
 function fullIdx(rows){ return Math.max(fullFirst(rows)-1,0); }                          // 長期回測的基準日（前一天收盤，2006-12-29）
 function fullLabel(rows){ const i=fullFirst(rows), t=rows[i].t; return (t>="2007-01-01"&&t<"2007-02-01") ? "2007 至今" : `${dateLbl(t)} 至今`; }
+// 聯準會升息／降息循環底色。日期是 FOMC 宣布日（官方聲明稿），不是 openmarket.htm 表格上常見的次日生效日。
+// 來源：https://www.federalreserve.gov/monetarypolicy/openmarket.htm ，並以各次 FOMC statement 核對；FRED DFEDTAR / DFEDTARU 作交叉檢查。
+// 循環從「新方向的第一次行動」當天起，到下一次相反方向第一次行動的前一天止。最後一筆未訂結束日，畫到圖的最後一天。
+// 最近核對：2026-11-24。當時最新行動是 2026-09-16 升息 25 點（3.75–4.00%）；2026-10-28 維持不變，升息循環仍在進行。
+const FED_REGIMES = [
+  {kind:"hike", from:"2004-06-30", to:"2007-09-17"},
+  {kind:"cut",  from:"2007-09-18", to:"2015-12-15"},
+  {kind:"hike", from:"2015-12-16", to:"2019-07-30"},
+  {kind:"cut",  from:"2019-07-31", to:"2022-03-15"},
+  {kind:"hike", from:"2022-03-16", to:"2024-09-17"},
+  {kind:"cut",  from:"2024-09-18", to:"2026-09-15"},
+  {kind:"hike", from:"2026-09-16", to:null}
+];
+function fedColor(t){
+  for(const r of FED_REGIMES){ if(t>=r.from && (r.to==null || t<=r.to)) return css(r.kind==="hike"?"--fed-hike":"--fed-cut"); }
+  return "rgba(0,0,0,0)";
+}
+function fedBars(times){ return times.map(t=>({time:t,value:1,color:fedColor(t)})); }
+function addFedBg(ch){
+  const s=ch.addHistogramSeries({priceScaleId:"fedbg",lastValueVisible:false,priceLineVisible:false,base:0,
+    autoscaleInfoProvider:()=>({priceRange:{minValue:0,maxValue:1}})});
+  ch.priceScale("fedbg").applyOptions({visible:false,borderVisible:false,scaleMargins:{top:0,bottom:0}});
+  return s;
+}
 let BASE_DATE = "2025-01-01";  // 累計漲跌與策略回測的起算日，可在頁面上輸入
 // 起算日的基準：起算日前一個交易日的收盤；超出資料範圍時夾在範圍內
 function baseIdx(rows){ let bi=rows.findIndex(r=>r.t>=BASE_DATE); if(bi<0) bi=rows.length-1; return Math.min(Math.max(bi-1,0), rows.length-2); }
@@ -130,7 +158,7 @@ const FIELDS = [
 ];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const RALLY_COLOR = "#d6338a";  // 反彈第一天標記顏色
-let ALL, current, chart, candle, vol, ma20S, ma50S;
+let ALL, current, chart, candle, vol, ma20S, ma50S, fedBg;
 
 function analyze(rows){
   const n = rows.length, last = n-1, res = {dist:[], stall:[]};
@@ -208,6 +236,7 @@ function render(){
   const a = analyze(rows);
   const zero = rows.filter(r=>!r.v).length > rows.length/2;
   document.getElementById("note").textContent = zero ? "這個指數沒有成交量資料，無法判斷出貨日。" : "";
+  fedBg.setData(fedBars(shown.map(r=>r.t)));
   candle.setData(shown.map(r=>({time:r.t,open:r.o,high:r.h,low:r.l,close:r.c})));
   vol.setData(shown.map(r=>({time:r.t,value:r.v,color:(r.c>=r.o?css("--rise"):css("--fall"))+"66"})));
   ma20S.setData(shown.map((r,k)=>({time:r.t,value:a.ma20[off+k]})).filter(x=>x.value!==null));
@@ -263,7 +292,7 @@ function render(){
 }
 
 const R = {lev2:false, tp:20};
-let rchart=null, rS=null, rN=null, rStrat=null;
+let rchart=null, rS=null, rN=null, rStrat=null, rFed=null;
 function hasCashProxy(){ const d=ALL&&ALL.data; return !!(d&&((d.BOXX&&d.BOXX.length)||(d.BIL&&d.BIL.length)||(d.IRX&&d.IRX.length))); }
 function cashWord(){ return hasCashProxy()?"BOXX":"現金"; }
 function mapClose(rows){ const m={}; (rows||[]).forEach(r=>{ if(r&&r.t!=null&&r.c!=null) m[r.t]=r.c; }); return m; }
@@ -364,11 +393,13 @@ function renderRot(){
       layout:{background:{color:css("--panel")},textColor:css("--mute")},
       grid:{vertLines:{color:css("--line")},horzLines:{color:css("--line")}},
       rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line"),minBarSpacing:0.01},autoSize:true});
+    rFed=addFedBg(rchart);
     const o={lineWidth:2,priceLineVisible:false};
     rS=rchart.addLineSeries({...o,color:"#8a94a6"}); rN=rchart.addLineSeries({...o,color:css("--ftd")});
     rStrat=rchart.addLineSeries({...o,color:css("--dist"),lineWidth:3});
   }
   // 圖一律從 2007 年第一個交易日開始畫（資料不夠早就從第一天），三條線都以前一天收盤 = 100；上面的起算日只影響累計漲跌的數字
+  rFed.setData(fedBars(sp.slice(pF).map(r=>r.t)));
   rS.setData(sp.slice(pF).map(r=>({time:r.t,value:r.c/sp[bF].c*100})));
   rN.setData(sp.slice(pF).map((r,k)=>({time:r.t,value:one5.nq[pF+k]/one5.nq[bF]*100})));
   rStrat.setData(main5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF));
@@ -411,6 +442,7 @@ function build(){
     layout:{background:{color:css("--panel")},textColor:css("--mute")},
     grid:{vertLines:{color:css("--line")},horzLines:{color:css("--line")}},
     rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line"),minBarSpacing:0.01},autoSize:true});
+  fedBg = addFedBg(chart);
   candle = chart.addCandlestickSeries({upColor:css("--rise"),downColor:css("--fall"),
     borderUpColor:css("--rise"),borderDownColor:css("--fall"),wickUpColor:css("--rise"),wickDownColor:css("--fall")});
   candle.priceScale().applyOptions({scaleMargins:{top:0.08,bottom:0.25}});
