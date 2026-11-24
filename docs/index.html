@@ -89,8 +89,8 @@ h2{font-size:16px;margin:22px 0 8px}
     <h2>最佳策略結果</h2>
     <div id="rsum" style="font-size:14px;margin:-2px 0 8px">最佳策略 1 倍：自 <input type="date" class="baseDate" value="2025-01-01" aria-label="最佳策略起算日" style="font:inherit;font-size:13px;padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)"> <span class="baseMsg" style="color:var(--down);font-size:13px"></span><span id="rsumA"></span><div id="rsumB"></div></div>
     <div class="hint">規則（每次都是 100% 換到同一個標的，都在訊號當天收盤換）：① S&amp;P 500 漲勢確立 → 換進 Nasdaq。② 持有 Nasdaq 時，Nasdaq 頭部確立 → 換成 S&amp;P 500。③ 持有 S&amp;P 500 時，Nasdaq 漲勢確立 → 換回 Nasdaq。④ S&amp;P 500 頭部確立 → 換成<span class="cashWord"> BOXX</span>，等下一次 S&amp;P 500 漲勢確立再換進 Nasdaq。兩個指數的訊號分別照各自分頁的規則（S&amp;P 500 漲勢確立門檻 0.8%、只看出貨日；Nasdaq 門檻 1.25%、出貨日或死亡交叉）。同一天有多個訊號時，順序是 S&amp;P 500 頭部、S&amp;P 500 漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。起手 100% S&amp;P 500，直到第一個訊號。兩倍模式：每次換進 Nasdaq 都用兩倍，兩倍部位自換進後上漲到停利比例就換回一倍；S&amp;P 500 與現金部位一律一倍。</div>
-    <div class="hint">注意：不計手續費與指數股息。<span class="cashHint">現金部位改持有 BOXX（2022/12 上市前以 BIL 代替，用還原收盤把配息算進去）。</span>兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際的兩倍 ETF（例如 QLD）追蹤的是 Nasdaq-100，還有費用與借貸成本，結果會有落差。這組規則是看過歷史資料才挑出來的，交易次數少，有過度擬合的風險。</div>
-    <div class="hint" id="rcashNote">現金部位以 BOXX 計算；2022/12 BOXX 上市前以 BIL 代替</div>
+    <div class="hint">注意：不計手續費與指數股息。<span class="cashHint">現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。</span>兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際的兩倍 ETF（例如 QLD）追蹤的是 Nasdaq-100，還有費用與借貸成本，結果會有落差。這組規則是看過歷史資料才挑出來的，交易次數少，有過度擬合的風險。</div>
+    <div class="hint" id="rcashNote">2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替</div>
     <div class="scroll"><table>
       <thead><tr><th>日期</th><th>從</th><th>換到</th><th>原因</th><th>S&amp;P 500 收盤</th><th>Nasdaq 收盤</th><th>策略淨值（<span class="baseLbl">2025/1/1</span> = 100）</th></tr></thead>
       <tbody id="rtable"></tbody>
@@ -108,11 +108,11 @@ const TOP_LABEL = {any:"出貨日或死亡交叉",dist:"只看出貨日",cross:"
 let topModeEl = null;  // 參數區「頭部確立條件」的固定顯示，切換分頁時更新
 const SHOWN = ["S&P 500","Nasdaq"];  // 只顯示這兩個指數（資料裡若還有 Dow 會略過）
 const SHOW = 400;            // 找不到起始日時的備用天數
-let START = "1900-01-01";  // 圖表與表格從這天開始顯示（載入後設為 2019 年第一個交易日；資料不夠早就從資料第一天開始）
-const FROM = "2019-01-01";  // 回測與圖表的起點；之前的資料只拿來暖機（算均線與訊號）
+let START = "1900-01-01";  // 圖表與表格從這天開始顯示（載入後設為 2007 年第一個交易日；資料不夠早就從資料第一天開始）
+const FROM = "2007-01-01";  // 回測與圖表的起點；之前的資料只拿來暖機（算均線與訊號）
 function fullFirst(rows){ const f=rows.findIndex(r=>r.t>=FROM); return f<0?0:f; }       // 圖表第一天
-function fullIdx(rows){ return Math.max(fullFirst(rows)-1,0); }                          // 長期回測的基準日（前一天收盤）
-function fullLabel(rows){ return fullFirst(rows)>0 ? "2019 至今" : `${dateLbl(rows[0].t)} 至今`; }
+function fullIdx(rows){ return Math.max(fullFirst(rows)-1,0); }                          // 長期回測的基準日（前一天收盤，2006-12-29）
+function fullLabel(rows){ const i=fullFirst(rows), t=rows[i].t; return (t>="2007-01-01"&&t<"2007-02-01") ? "2007 至今" : `${dateLbl(t)} 至今`; }
 let BASE_DATE = "2025-01-01";  // 累計漲跌與策略回測的起算日，可在頁面上輸入
 // 起算日的基準：起算日前一個交易日的收盤；超出資料範圍時夾在範圍內
 function baseIdx(rows){ let bi=rows.findIndex(r=>r.t>=BASE_DATE); if(bi<0) bi=rows.length-1; return Math.min(Math.max(bi-1,0), rows.length-2); }
@@ -264,7 +264,7 @@ function render(){
 
 const R = {lev2:false, tp:20};
 let rchart=null, rS=null, rN=null, rStrat=null;
-function hasCashProxy(){ const d=ALL&&ALL.data; return !!(d&&((d.BOXX&&d.BOXX.length)||(d.BIL&&d.BIL.length))); }
+function hasCashProxy(){ const d=ALL&&ALL.data; return !!(d&&((d.BOXX&&d.BOXX.length)||(d.BIL&&d.BIL.length)||(d.IRX&&d.IRX.length))); }
 function cashWord(){ return hasCashProxy()?"BOXX":"現金"; }
 function mapClose(rows){ const m={}; (rows||[]).forEach(r=>{ if(r&&r.t!=null&&r.c!=null) m[r.t]=r.c; }); return m; }
 function alignCarry(sp, map){
@@ -272,9 +272,11 @@ function alignCarry(sp, map){
   for(let i=0;i<sp.length;i++){ if(map[sp[i].t]!=null){ last=map[sp[i].t]; started=true; } out[i]=started?last:null; }
   return out;
 }
-function cashRet(i, boxx, bil){
+function calDays(a,b){ const p=t=>{const [y,m,d]=t.split("-").map(Number); return Date.UTC(y,m-1,d);}; return Math.round((p(b)-p(a))/86400000); }
+function cashRet(i, boxx, bil, irx, sp){
   if(boxx[i]!=null && boxx[i-1]!=null && boxx[i-1]!==0) return boxx[i]/boxx[i-1]-1;
   if(bil[i]!=null && bil[i-1]!=null && bil[i-1]!==0) return bil[i]/bil[i-1]-1;
+  if(irx[i-1]!=null) return (irx[i-1]/100)*calDays(sp[i-1].t,sp[i].t)/365;
   return 0;
 }
 const ROT_ACT = {
@@ -291,7 +293,7 @@ function applyCashWording(){
   const leg=document.getElementById("rlegCash");
   if(leg) leg.innerHTML=`<b style="color:var(--fall)">■</b> ${phrase}`;
   document.querySelectorAll(".cashWord").forEach(el=>el.textContent=has?" BOXX":"現金");
-  document.querySelectorAll(".cashHint").forEach(el=>el.textContent=has?"現金部位改持有 BOXX（2022/12 上市前以 BIL 代替，用還原收盤把配息算進去）。":"現金利息以 0% 計。");
+  document.querySelectorAll(".cashHint").forEach(el=>el.textContent=has?"現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。":"現金利息以 0% 計。");
   const note=document.getElementById("rcashNote");
   if(note) note.style.display=has?"":"none";
 }
@@ -317,14 +319,14 @@ function rotEvents(){
 // 持有標普時 Nasdaq 漲勢確立 → 換回 Nasdaq；標普頭部確立 → 100% 現金。同一天的優先順序：標普頭部、標普漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。
 function rotation(base, lev2){
   const sp=ALL.data["S&P 500"], n=sp.length, E=rotEvents(), nq=E.nq, T=R.tp/100;
-  const boxx=alignCarry(sp, mapClose(ALL.data.BOXX)), bil=alignCarry(sp, mapClose(ALL.data.BIL));
+  const boxx=alignCarry(sp, mapClose(ALL.data.BOXX)), bil=alignCarry(sp, mapClose(ALL.data.BIL)), irx=alignCarry(sp, mapClose(ALL.data.IRX));
   const cashName=cashWord();
   let w=1, st="init", L=1, legv=1, sw=0;
   const vals=[1], log=[];
   const NAME={init:"S&P 500（起手）",N:"Nasdaq",S:"S&P 500",cash:cashName};
   const add=(i,act,from,to,why)=>{ sw++; log.push({i,act,from,to,why,v:w}); };
   for(let i=base+1;i<n;i++){
-    const rs=sp[i].c/sp[i-1].c-1, rn=nq[i]/nq[i-1]-1, rc=cashRet(i,boxx,bil);
+    const rs=sp[i].c/sp[i-1].c-1, rn=nq[i]/nq[i-1]-1, rc=cashRet(i,boxx,bil,irx,sp);
     if(st==="init"||st==="S") w*=1+rs;
     else if(st==="N"){ w*=1+L*rn; if(L>1) legv*=1+L*rn; }
     else if(st==="cash") w*=1+rc;  // 現金部位一律一倍，兩倍模式也不加槓桿
@@ -361,12 +363,12 @@ function renderRot(){
     rchart=LightweightCharts.createChart(document.getElementById("rchart"),{
       layout:{background:{color:css("--panel")},textColor:css("--mute")},
       grid:{vertLines:{color:css("--line")},horzLines:{color:css("--line")}},
-      rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line")},autoSize:true});
+      rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line"),minBarSpacing:0.01},autoSize:true});
     const o={lineWidth:2,priceLineVisible:false};
     rS=rchart.addLineSeries({...o,color:"#8a94a6"}); rN=rchart.addLineSeries({...o,color:css("--ftd")});
     rStrat=rchart.addLineSeries({...o,color:css("--dist"),lineWidth:3});
   }
-  // 圖一律從 2019 年第一個交易日開始畫（資料不夠早就從第一天），三條線都以前一天收盤 = 100；上面的起算日只影響累計漲跌的數字
+  // 圖一律從 2007 年第一個交易日開始畫（資料不夠早就從第一天），三條線都以前一天收盤 = 100；上面的起算日只影響累計漲跌的數字
   rS.setData(sp.slice(pF).map(r=>({time:r.t,value:r.c/sp[bF].c*100})));
   rN.setData(sp.slice(pF).map((r,k)=>({time:r.t,value:one5.nq[pF+k]/one5.nq[bF]*100})));
   rStrat.setData(main5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF));
@@ -374,7 +376,7 @@ function renderRot(){
   document.getElementById("rlegStrat").textContent=R.lev2?`最佳策略 兩倍模式（停利 ${R.tp}%）`:"最佳策略";
   document.getElementById("rlegTp").style.display=R.lev2?"":"none";
   rchart.timeScale().fitContent();
-  // 目前配置：看 2019 年起的完整結果
+  // 目前配置：看 2007 年起的完整結果
   const last=main5.log.at(-1);
   const now=main5.state==="cash"?cashWord():main5.state==="S"?"S&P 500 100%":main5.state==="N"?`Nasdaq 100%${R.lev2?(main5.L>1?"（兩倍）":"（一倍）"):""}`:"S&P 500 100%（尚未出現訊號）";
   document.getElementById("rstate").innerHTML=`目前配置：<b>${now}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}`;
@@ -408,7 +410,7 @@ function build(){
   chart = LightweightCharts.createChart(document.getElementById("chart"),{
     layout:{background:{color:css("--panel")},textColor:css("--mute")},
     grid:{vertLines:{color:css("--line")},horzLines:{color:css("--line")}},
-    rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line")},autoSize:true});
+    rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line"),minBarSpacing:0.01},autoSize:true});
   candle = chart.addCandlestickSeries({upColor:css("--rise"),downColor:css("--fall"),
     borderUpColor:css("--rise"),borderDownColor:css("--fall"),wickUpColor:css("--rise"),wickDownColor:css("--fall")});
   candle.priceScale().applyOptions({scaleMargins:{top:0.08,bottom:0.25}});
