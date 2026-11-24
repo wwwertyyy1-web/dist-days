@@ -1,0 +1,23 @@
+name: update-data
+on:
+  schedule:
+    - cron: "0 22 * * 1-5"   # UTC 22:00 = 台灣早上 6:00，週二到週六
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install yfinance pandas
+      - run: python fetch.py
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/data.json
+          git diff --cached --quiet || (git commit -m "update data" && git push)
