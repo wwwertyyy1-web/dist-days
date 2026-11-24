@@ -82,14 +82,15 @@ h2{font-size:16px;margin:22px 0 8px}
       <span><i style="background:var(--dist)"></i><span id="rlegStrat">最佳策略</span></span>
       <span><b style="color:var(--ftd)">▲</b> 換進那斯達克</span>
       <span><b style="color:#7a5c00">▼</b> 換成標普</span>
-      <span><b style="color:var(--fall)">■</b> 換成現金</span>
+      <span id="rlegCash"><b style="color:var(--fall)">■</b> 換成 BOXX</span>
       <span id="rlegTp" style="display:none"><b style="color:var(--stall)">●</b> 停利換回1倍</span>
     </div>
     <div class="params" id="rparams"></div>
     <h2>最佳策略結果</h2>
     <div id="rsum" style="font-size:14px;margin:-2px 0 8px">最佳策略 1 倍：自 <input type="date" class="baseDate" value="2025-01-01" aria-label="最佳策略起算日" style="font:inherit;font-size:13px;padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)"> <span class="baseMsg" style="color:var(--down);font-size:13px"></span><span id="rsumA"></span><div id="rsumB"></div></div>
-    <div class="hint">規則（每次都是 100% 換到同一個標的，都在訊號當天收盤換）：① S&amp;P 500 漲勢確立 → 換進 Nasdaq。② 持有 Nasdaq 時，Nasdaq 頭部確立 → 換成 S&amp;P 500。③ 持有 S&amp;P 500 時，Nasdaq 漲勢確立 → 換回 Nasdaq。④ S&amp;P 500 頭部確立 → 換成現金，等下一次 S&amp;P 500 漲勢確立再換進 Nasdaq。兩個指數的訊號分別照各自分頁的規則（S&amp;P 500 漲勢確立門檻 0.8%、只看出貨日；Nasdaq 門檻 1.25%、出貨日或死亡交叉）。同一天有多個訊號時，順序是 S&amp;P 500 頭部、S&amp;P 500 漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。起手 100% S&amp;P 500，直到第一個訊號。兩倍模式：每次換進 Nasdaq 都用兩倍，兩倍部位自換進後上漲到停利比例就換回一倍；S&amp;P 500 一律一倍。</div>
-    <div class="hint">注意：不計手續費、股息與現金利息。兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際的兩倍 ETF（例如 QLD）追蹤的是 Nasdaq-100，還有費用與借貸成本，結果會有落差。這組規則是看過歷史資料才挑出來的，交易次數少，有過度擬合的風險。</div>
+    <div class="hint">規則（每次都是 100% 換到同一個標的，都在訊號當天收盤換）：① S&amp;P 500 漲勢確立 → 換進 Nasdaq。② 持有 Nasdaq 時，Nasdaq 頭部確立 → 換成 S&amp;P 500。③ 持有 S&amp;P 500 時，Nasdaq 漲勢確立 → 換回 Nasdaq。④ S&amp;P 500 頭部確立 → 換成<span class="cashWord"> BOXX</span>，等下一次 S&amp;P 500 漲勢確立再換進 Nasdaq。兩個指數的訊號分別照各自分頁的規則（S&amp;P 500 漲勢確立門檻 0.8%、只看出貨日；Nasdaq 門檻 1.25%、出貨日或死亡交叉）。同一天有多個訊號時，順序是 S&amp;P 500 頭部、S&amp;P 500 漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。起手 100% S&amp;P 500，直到第一個訊號。兩倍模式：每次換進 Nasdaq 都用兩倍，兩倍部位自換進後上漲到停利比例就換回一倍；S&amp;P 500 與現金部位一律一倍。</div>
+    <div class="hint">注意：不計手續費與指數股息。<span class="cashHint">現金部位改持有 BOXX（2022/12 上市前以 BIL 代替，用還原收盤把配息算進去）。</span>兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際的兩倍 ETF（例如 QLD）追蹤的是 Nasdaq-100，還有費用與借貸成本，結果會有落差。這組規則是看過歷史資料才挑出來的，交易次數少，有過度擬合的風險。</div>
+    <div class="hint" id="rcashNote">現金部位以 BOXX 計算；2022/12 BOXX 上市前以 BIL 代替</div>
     <div class="scroll"><table>
       <thead><tr><th>日期</th><th>從</th><th>換到</th><th>原因</th><th>S&amp;P 500 收盤</th><th>Nasdaq 收盤</th><th>策略淨值（<span class="baseLbl">2025/1/1</span> = 100）</th></tr></thead>
       <tbody id="rtable"></tbody>
@@ -263,12 +264,37 @@ function render(){
 
 const R = {lev2:false, tp:20};
 let rchart=null, rS=null, rN=null, rStrat=null;
+function hasCashProxy(){ const d=ALL&&ALL.data; return !!(d&&((d.BOXX&&d.BOXX.length)||(d.BIL&&d.BIL.length))); }
+function cashWord(){ return hasCashProxy()?"BOXX":"現金"; }
+function mapClose(rows){ const m={}; (rows||[]).forEach(r=>{ if(r&&r.t!=null&&r.c!=null) m[r.t]=r.c; }); return m; }
+function alignCarry(sp, map){
+  const out=new Array(sp.length).fill(null); let last=null, started=false;
+  for(let i=0;i<sp.length;i++){ if(map[sp[i].t]!=null){ last=map[sp[i].t]; started=true; } out[i]=started?last:null; }
+  return out;
+}
+function cashRet(i, boxx, bil){
+  if(boxx[i]!=null && boxx[i-1]!=null && boxx[i-1]!==0) return boxx[i]/boxx[i-1]-1;
+  if(bil[i]!=null && bil[i-1]!=null && bil[i-1]!==0) return bil[i]/bil[i-1]-1;
+  return 0;
+}
 const ROT_ACT = {
   nq:{label:"換進那斯達克", shape:"arrowUp", pos:"belowBar", color:()=>css("--ftd"), text:"那斯達克"},
   sp:{label:"換成標普", shape:"arrowDown", pos:"aboveBar", color:()=>"#7a5c00", text:"標普"},
   cash:{label:"換成現金", shape:"square", pos:"aboveBar", color:()=>css("--fall"), text:"現金"},
   tp:{label:"停利換回1倍", shape:"circle", pos:"belowBar", color:()=>css("--stall"), text:"1倍"}
 };
+function applyCashWording(){
+  const w=cashWord();
+  const has=hasCashProxy();
+  const phrase=has?"換成 BOXX":"換成現金";
+  ROT_ACT.cash.label=phrase; ROT_ACT.cash.text=w;
+  const leg=document.getElementById("rlegCash");
+  if(leg) leg.innerHTML=`<b style="color:var(--fall)">■</b> ${phrase}`;
+  document.querySelectorAll(".cashWord").forEach(el=>el.textContent=has?" BOXX":"現金");
+  document.querySelectorAll(".cashHint").forEach(el=>el.textContent=has?"現金部位改持有 BOXX（2022/12 上市前以 BIL 代替，用還原收盤把配息算進去）。":"現金利息以 0% 計。");
+  const note=document.getElementById("rcashNote");
+  if(note) note.style.display=has?"":"none";
+}
 let ROT_EV=null;  // 兩個指數的訊號（只算一次）
 function rotEvents(){
   if(ROT_EV) return ROT_EV;
@@ -291,17 +317,20 @@ function rotEvents(){
 // 持有標普時 Nasdaq 漲勢確立 → 換回 Nasdaq；標普頭部確立 → 100% 現金。同一天的優先順序：標普頭部、標普漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。
 function rotation(base, lev2){
   const sp=ALL.data["S&P 500"], n=sp.length, E=rotEvents(), nq=E.nq, T=R.tp/100;
+  const boxx=alignCarry(sp, mapClose(ALL.data.BOXX)), bil=alignCarry(sp, mapClose(ALL.data.BIL));
+  const cashName=cashWord();
   let w=1, st="init", L=1, legv=1, sw=0;
   const vals=[1], log=[];
-  const NAME={init:"S&P 500（起手）",N:"Nasdaq",S:"S&P 500",cash:"現金"};
+  const NAME={init:"S&P 500（起手）",N:"Nasdaq",S:"S&P 500",cash:cashName};
   const add=(i,act,from,to,why)=>{ sw++; log.push({i,act,from,to,why,v:w}); };
   for(let i=base+1;i<n;i++){
-    const rs=sp[i].c/sp[i-1].c-1, rn=nq[i]/nq[i-1]-1;
+    const rs=sp[i].c/sp[i-1].c-1, rn=nq[i]/nq[i-1]-1, rc=cashRet(i,boxx,bil);
     if(st==="init"||st==="S") w*=1+rs;
     else if(st==="N"){ w*=1+L*rn; if(L>1) legv*=1+L*rn; }
+    else if(st==="cash") w*=1+rc;  // 現金部位一律一倍，兩倍模式也不加槓桿
     vals.push(w);
     const from=NAME[st]+(st==="N"&&lev2?(L>1?"（兩倍）":"（一倍）"):"");
-    if(E.spTop.has(i) && st!=="cash"){ st="cash"; L=1; add(i,"cash",from,"現金","S&P 500 頭部確立"); }
+    if(E.spTop.has(i) && st!=="cash"){ st="cash"; L=1; add(i,"cash",from,cashName,"S&P 500 頭部確立"); }
     else if(E.spFtd.has(i) && st!=="N"){ st="N"; L=lev2?2:1; legv=1; add(i,"nq",from,"Nasdaq"+(lev2?"（兩倍）":""),"S&P 500 漲勢確立"); }
     else if(st==="N" && E.nqTop.has(i)){ st="S"; L=1; add(i,"sp",from,"S&P 500","Nasdaq 頭部確立"); }
     else if(st==="S" && E.nqFtd.has(i)){ st="N"; L=lev2?2:1; legv=1; add(i,"nq",from,"Nasdaq"+(lev2?"（兩倍）":""),"Nasdaq 漲勢確立"); }
@@ -315,6 +344,7 @@ function holdStats(rows, base){
   return {ret:(rows.at(-1).c/rows[base].c-1)*100, dd:dd*100};
 }
 function renderRot(){
+  applyCashWording();
   const sp=ALL.data["S&P 500"], nqRows=ALL.data["Nasdaq"];
   const b25=baseIdx(sp), BL=baseLabel(sp);
   document.querySelectorAll(".baseLbl").forEach(x=>x.textContent=BL);
@@ -346,7 +376,7 @@ function renderRot(){
   rchart.timeScale().fitContent();
   // 目前配置：看 2019 年起的完整結果
   const last=main5.log.at(-1);
-  const now=main5.state==="cash"?"現金":main5.state==="S"?"S&P 500 100%":main5.state==="N"?`Nasdaq 100%${R.lev2?(main5.L>1?"（兩倍）":"（一倍）"):""}`:"S&P 500 100%（尚未出現訊號）";
+  const now=main5.state==="cash"?cashWord():main5.state==="S"?"S&P 500 100%":main5.state==="N"?`Nasdaq 100%${R.lev2?(main5.L>1?"（兩倍）":"（一倍）"):""}`:"S&P 500 100%（尚未出現訊號）";
   document.getElementById("rstate").innerHTML=`目前配置：<b>${now}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}`;
   const line=(lab,a,b)=>`${lab}：${BL} 至今 ${col(a.ret)}（最大回撤 ${a.dd.toFixed(2)}%），${FL} ${col(b.ret)}（最大回撤 ${b.dd.toFixed(2)}%）`;
   document.getElementById("rsumA").innerHTML=` 至今 ${col(one25.ret)}（最大回撤 ${one25.dd.toFixed(2)}%），${FL} ${col(one5.ret)}（最大回撤 ${one5.dd.toFixed(2)}%），切換 ${one25.sw} 次 / ${one5.sw} 次`;
