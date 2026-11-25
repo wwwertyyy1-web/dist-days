@@ -143,7 +143,7 @@ h2{font-size:16px;margin:22px 0 8px}
     </div>
     <h2>最佳2倍槓桿策略結果</h2>
     <div id="lsum" style="font-size:14px;margin:-2px 0 8px">起算日 <input type="date" class="baseDate" value="2025-01-01" aria-label="最佳2倍槓桿策略起算日" style="font:inherit;font-size:13px;padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)"> <span class="baseMsg" style="color:var(--down);font-size:13px"></span><div id="lsumA" style="margin-top:4px"></div><div id="lsumB"></div></div>
-    <div class="hint">最佳2倍槓桿策略以「最佳策略」（停損後不追高）為底：部位切換規則完全相同。只有在持有 Nasdaq 時，若前一日收盤已同時滿足 ① Nasdaq 收盤在 200 日均線之上、② 200 日均線近 20 個交易日上漲超過 1%、③ 14 日 RSI 不超過 65，隔日才改用 2 倍計價。條件以當日收盤計算、隔日才生效，沒有用到未來資料。不滿足條件時，持股為 QQQ；VOO 與<span class="cashWord"> BOXX</span>一律 1 倍。</div>
+    <div class="hint">最佳2倍槓桿策略以「最佳策略」（停損後不追高）為底：部位切換規則完全相同。只有在持有 Nasdaq 時，若前一日收盤已同時滿足 ① Nasdaq 收盤在 200 日均線之上、② 200 日均線近 20 個交易日上漲超過 1%、③ 14 日 RSI 不超過 65，隔日才改用 2 倍（QLD）。一旦開了 2 倍，維持到前一日收盤出現 ① 跌破 200 日線、② 200 日線近 20 日漲幅不再大於 1%，或 ③ RSI14 超過 75，隔日才改回 1 倍（QQQ）。條件以當日收盤計算、隔日才生效，沒有用到未來資料。VOO 與<span class="cashWord"> BOXX</span>一律 1 倍。策略本身的頭部、停損或換倉也會結束 2 倍。</div>
     <div class="hint">兩倍是用 Nasdaq 綜合指數每日漲跌乘以 2，再扣年費 0.95%（平均分到 252 個交易日）模擬，不是直接用 QLD 的歷史價格。實際的 QLD 追蹤的是 Nasdaq-100 的 2 倍，還有追蹤誤差、借貸成本與滑價，報酬通常會再低一點。規則參考過歷史資料設計，有過度擬合的風險。<span class="cashHint">現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。</span></div>
     <div class="hint cashNote" id="lcashNote">2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替</div>
     <div class="hint" id="ltableCap" style="margin:10px 0 6px;color:var(--ink);font-weight:600">切換明細：依實際持有標的列出（VOO、QQQ、QLD、<span class="cashWord">BOXX</span>），2 倍開閉也各列一筆；停損列已標示；淨值為含 2 倍擇時後的結果</div>
@@ -799,29 +799,61 @@ function wilderRsi(closes,w=14){
   }
   return out;
 }
-function highMask(nq){
-  const ma=smaArr(nq,200), rsi=wilderRsi(nq,14);
-  const mask=new Array(nq.length).fill(false);
-  for(let t=20;t<nq.length;t++){
-    if(ma[t]==null || ma[t-20]==null || rsi[t]==null) continue;
-    mask[t]=nq[t]>ma[t] && (ma[t]/ma[t-20]-1)>0.01 && rsi[t]<=65;
+function hystMask(nq, stateAm, base, exitRsi=75){
+  const ma=smaArr(nq,200), rsi=wilderRsi(nq,14), n=nq.length;
+  const mask=new Array(n).fill(false), exitWhy=new Array(n).fill(null);
+  let in2x=false;
+  for(let t=base;t<n-1;t++){
+    const holding=stateAm[t+1]==="N";
+    if(!holding){
+      in2x=false;
+    }else{
+      const m=ma[t], m20=t>=20?ma[t-20]:null, r=rsi[t];
+      const above=m!=null && nq[t]>m;
+      const slopeOk=m!=null && m20!=null && (m/m20-1)>0.01;
+      const trendOk=above && slopeOk;
+      const entryOk=trendOk && r!=null && r<=65;
+      if(in2x){
+        const reasons=[];
+        if(!above) reasons.push("那斯達克收盤跌破 200 日線");
+        if(!(m!=null && m20!=null && (m/m20-1)>0.01)) reasons.push("200 日線近 20 日漲幅不再大於 1%");
+        if(r==null || r>exitRsi) reasons.push(r==null?"RSI 不足":`RSI14 為 ${r.toFixed(1)}，超過 75`);
+        if(reasons.length){ in2x=false; exitWhy[t]=reasons.join("；"); }
+      }else if(entryOk){
+        in2x=true;
+      }
+    }
+    mask[t]=in2x;
   }
-  return mask;
+  return {mask, exitWhy};
 }
 function lev2Overlay(base){
   if(LEV2_CACHE[base]) return LEV2_CACHE[base];
   const one=rotation(base,false,true,true,true);
   const sp=ALL.data["S&P 500"], nq=one.nq, n=sp.length;
-  const mask=highMask(nq);
+  const byI0={}; one.log.forEach(e=>{ byI0[e.i]=e; });
+  const stateAm=new Array(n).fill("init");
+  let stx="init";
+  for(let i=base+1;i<n;i++){
+    stateAm[i]=stx;
+    const e=byI0[i];
+    if(e){
+      if(e.act==="nq") stx="N";
+      else if(e.act==="sp") stx="S";
+      else if(e.act==="cash"||e.act==="stop") stx="cash";
+    }
+  }
+  const {mask, exitWhy}=hystMask(nq, stateAm, base, 75);
   const boxx=alignCarry(sp, mapClose(ALL.data.BOXX)), bil=alignCarry(sp, mapClose(ALL.data.BIL)), irx=alignCarry(sp, mapClose(ALL.data.IRX));
   const byI={}; one.log.forEach(e=>{ byI[e.i]=e; });
   const vals=[1], levOn=new Array(n).fill(false), eps=[];
   let w=1, st="init", inEp=false, epS=0, r1=1, r2=1, epD=0;
   const closeEp=(endI, sNow)=>{
-    let why="指標條件失效";
+    let why="指標出場";
     const ex=byI[endI];
     if(ex && (ex.act==="stop"||ex.act==="cash"||ex.act==="sp")) why=`策略出場（${ex.why}）`;
     else if(sNow!=="N") why="策略出場";
+    else if(exitWhy[endI]) why=`指標出場（${exitWhy[endI]}）`;
     eps.push({start_i:epS,end_i:endI,start_t:sp[epS].t,end_t:sp[endI].t,days:epD,r1:(r1-1)*100,r2:(r2-1)*100,exit_why:why});
     inEp=false;
   };
@@ -874,12 +906,12 @@ function lev2Overlay(base){
       why=`${e.why}（確立日 ${e.ftdDate}，${e.stopDd.toFixed(2)}%）`;
       act="stop"; text="停損";
     }else if(e && (e.act==="cash"||e.act==="sp"||e.act==="nq")){
-      why=(e.act==="nq" && next==="QLD")?(e.why+"，指標已成立改持 QLD"):e.why;
+      why=(e.act==="nq" && next==="QLD")?(e.why+"，進場條件已成立改持 QLD"):e.why;
       act=e.act; text=next;
     }else if(next==="QLD"){
-      why="指標條件成立，隔日起改持 QLD"; act="qld";
+      why="進場條件成立（收盤在 200 日線上、200 日線近 20 日上漲超過 1%、RSI14 不超過 65），隔日起改持 QLD"; act="qld";
     }else if(next==="QQQ"){
-      why="指標條件失效，隔日起改持 QQQ"; act="qqq";
+      why=exitWhy[i]?`指標出場（${exitWhy[i]}），隔日起改持 QQQ`:"指標出場，隔日起改持 QQQ"; act="qqq";
     }else{
       why="部位切換"; act="hold";
     }
@@ -954,7 +986,10 @@ function renderLev2(){
   lchart.timeScale().fitContent();
   const last=two5.switches.at(-1);
   const posNow=two5.hold || (last?last.to:cashWord());
-  document.getElementById("lstate").innerHTML=`目前配置：<b style="color:${lev2HoldColor(posNow)}">${posNow}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}`+rallyHtml(bestEntryReminder(two5.one));
+  const holdNote=posNow==="QLD"?`<div class="rally">目前為 2 倍（QLD）。隔日若那斯達克收盤跌破 200 日線、200 日線近 20 日漲幅不再大於 1%，或 RSI14 超過 75，則改回 QQQ。</div>`
+    :posNow==="QQQ"?`<div class="rally">目前為 1 倍（QQQ）。需前一日收盤同時滿足收盤在 200 日線上、200 日線近 20 日上漲超過 1%、RSI14 不超過 65，隔日才改持 QLD。</div>`
+    :"";
+  document.getElementById("lstate").innerHTML=`目前配置：<b style="color:${lev2HoldColor(posNow)}">${posNow}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}`+holdNote+rallyHtml(bestEntryReminder(two5.one));
   const wrTxt=two=>{
     if(!two.epN) return "尚未出現 2 倍區間";
     const win=two.eps.filter(e=>e.r2>e.r1).length;
@@ -996,7 +1031,7 @@ function renderLev2(){
       two:(two5.vals[end-bF]/two5.vals[start-bF]-1)*100
     });
   }
-  document.getElementById("lyearCap").textContent="每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有，最佳策略是 1 倍輪動（停損後不追高），最佳2倍槓桿策略是在同一套部位上、符合條件時才用 2 倍（模型：2×那斯達克日報酬 − 年費 0.95%）。該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。";
+  document.getElementById("lyearCap").textContent="每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有，最佳策略是 1 倍輪動（停損後不追高），最佳2倍槓桿策略是在同一套部位上擇時用 2 倍（進場要三個條件，出場改為 RSI14 超過 75 或均線條件失效；模型：2×那斯達克日報酬 − 年費 0.95%）。該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。";
   const yKeys=["spHold","nqHold","one","two"];
   const yStar=r=>{
     const vals=yKeys.map(k=>r[k]).filter(v=>v!=null&&isFinite(v));
