@@ -41,6 +41,8 @@ th{color:var(--mute);font-weight:500;font-size:12.5px}
 .scroll-y thead{position:sticky;top:0;z-index:5;background:var(--panel)}
 .scroll-y thead th{background:var(--panel);box-shadow:0 1px 0 var(--line),0 -12px 0 8px var(--panel)}
 #ryears tr.total td{font-weight:700;border-top:2px solid var(--line)}
+#ryears td.best-yr b{position:relative;display:inline-block;z-index:1}
+#ryears td.best-yr b::before{content:"★";position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);font-size:1.85em;line-height:1;color:#ffc400;opacity:.4;pointer-events:none;z-index:-1}
 h2{font-size:16px;margin:22px 0 8px}
 .hint{color:var(--mute);font-size:13px;margin:-4px 0 8px}
 #note{color:var(--up);font-size:13px;margin-bottom:10px}
@@ -672,12 +674,21 @@ function renderRot(){
   const nqBase=Math.max(fullIdx(nqIdxSt.rows),0);
   const nqTrTot=(eqNq.at(-1)/eqNq[nqBase]-1)*100;
   document.getElementById("ryearCap").textContent = R.mode==="stop"
-    ? "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX，規則與最佳策略相同）。最佳策略欄顯示目前選中的新策略（加 2% 停損）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。"
-    : "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX，規則與最佳策略相同）。最佳策略欄顯示目前選中的舊策略（現行不停損）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。";
-  const cell=x=>`<td>${x==null?"–":col(x)}</td>`;
+    ? "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX，規則與最佳策略相同）。最佳策略欄顯示目前選中的新策略（加 2% 停損）。排除「最佳策略 2 倍」後，該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。"
+    : "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX，規則與最佳策略相同）。最佳策略欄顯示目前選中的舊策略（現行不停損）。排除「最佳策略 2 倍」後，該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。";
+  const yKeys=["spHold","nqHold","spTr","nqTr","one"];
+  const yStar=r=>{
+    const vals=yKeys.map(k=>r[k]).filter(v=>v!=null&&isFinite(v));
+    if(!vals.length) return {};
+    const mx=Math.max(...vals.map(v=>Math.round(v*100)/100));
+    const f={}; yKeys.forEach(k=>{ f[k]=r[k]!=null&&isFinite(r[k])&&Math.round(r[k]*100)/100===mx; });
+    return f;
+  };
+  const cell=(x,on)=>`<td${on?' class="best-yr"':''}>${x==null?"–":col(x)}</td>`;
+  const rowCells=(r,st)=>`${cell(r.spHold,st.spHold)}${cell(r.nqHold,st.nqHold)}${cell(r.spTr,st.spTr)}${cell(r.nqTr,st.nqTr)}${cell(r.one,st.one)}${cell(r.two,false)}`;
   document.getElementById("ryears").innerHTML = yRows.map(r=>
-    `<tr><td>${r.lab}</td>${cell(r.spHold)}${cell(r.nqHold)}${cell(r.spTr)}${cell(r.nqTr)}${cell(r.one)}${cell(r.two)}</tr>`
-  ).join("") + `<tr class="total"><td>${FL}</td>${cell(hs5.ret)}${cell(hn5.ret)}${cell(spTrTot)}${cell(nqTrTot)}${cell(oneY.ret)}${cell(twoY.ret)}</tr>`;
+    `<tr><td>${r.lab}</td>${rowCells(r,yStar(r))}</tr>`
+  ).join("") + `<tr class="total"><td>${FL}</td>${rowCells({spHold:hs5.ret,nqHold:hn5.ret,spTr:spTrTot,nqTr:nqTrTot,one:oneY.ret,two:twoY.ret},yStar({spHold:hs5.ret,nqHold:hn5.ret,spTr:spTrTot,nqTr:nqTrTot,one:oneY.ret}))}</tr>`;
 }
 function buildRotParams(){
   const pr=document.getElementById("rparams");
