@@ -36,6 +36,11 @@ th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
 th{color:var(--mute);font-weight:500;font-size:12.5px}
 .scroll{overflow-x:auto}
+.scroll-y{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);isolation:isolate}
+.scroll-y table{border:none;border-radius:0;overflow:visible;border-collapse:separate;border-spacing:0}
+.scroll-y thead{position:sticky;top:0;z-index:5;background:var(--panel)}
+.scroll-y thead th{background:var(--panel);box-shadow:0 1px 0 var(--line),0 -12px 0 8px var(--panel)}
+#ryears tr.total td{font-weight:700;border-top:2px solid var(--line)}
 h2{font-size:16px;margin:22px 0 8px}
 .hint{color:var(--mute);font-size:13px;margin:-4px 0 8px}
 #note{color:var(--up);font-size:13px;margin-bottom:10px}
@@ -59,6 +64,7 @@ h2{font-size:16px;margin:22px 0 8px}
     <span><i style="background:var(--up)"></i>頭部確立 ■（S&amp;P 500 預設只看出貨日，Nasdaq 預設出貨日或死亡交叉）</span>
     <span><i style="background:#d6338a"></i>反彈第一天 ●（標「反1」的是促成漲勢確立或目前進行中的那一次）</span>
     <span><i style="background:var(--ftd)"></i>漲勢確立 ▲</span>
+    <span><b style="color:var(--fall)">●</b> 停損（新策略）</span>
     <span><i style="background:var(--stall)"></i>MA20</span>
     <span><i style="background:var(--ftd)"></i>MA50</span>
     <span><i class="band" style="background:var(--fed-hike)"></i>底色：橙＝聯準會升息循環（第一次升息至第一次降息前）</span>
@@ -103,9 +109,15 @@ h2{font-size:16px;margin:22px 0 8px}
     <div class="hint">注意：不計手續費與指數股息。<span class="cashHint">現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。</span>當日收盤停損在實務上須於收盤前幾分鐘確認跌幅才下單。兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際兩倍 ETF（例如 QLD）追蹤 Nasdaq-100，還有費用與借貸成本。兩組規則均參考過歷史資料設計，有過度擬合的風險。</div>
     <div class="hint" id="rcashNote">2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替</div>
     <div class="hint" id="rtableCap" style="margin:10px 0 6px;color:var(--ink);font-weight:600"></div>
-    <div class="scroll"><table>
+    <div class="scroll scroll-y"><table>
       <thead><tr><th>日期</th><th>從</th><th>換到</th><th>原因</th><th>S&amp;P 500 收盤</th><th>Nasdaq 收盤</th><th>策略淨值（<span class="baseLbl">2025/1/1</span> = 100）</th></tr></thead>
       <tbody id="rtable"></tbody>
+    </table></div>
+    <h2>每年報酬</h2>
+    <div class="hint" id="ryearCap"></div>
+    <div class="scroll"><table>
+      <thead><tr><th>年份</th><th>S&amp;P 500</th><th>Nasdaq</th><th>最佳策略 1 倍</th><th>最佳策略 2 倍</th></tr></thead>
+      <tbody id="ryears"></tbody>
     </table></div>
   </div>
 </main>
@@ -266,6 +278,10 @@ function render(){
   document.getElementById("extraTops").textContent = extra.length
     ? "修正期間（尚未漲勢確立）再次出現的頭部訊號，不另起一列，圖上以灰色「頭」標示：" + extra.map(x=>rows[x.i].t+"（"+x.cause.join("＋")+"）").join("、")
     : "";
+  stopLog().forEach(x=>{
+    const t=ALL.data["S&P 500"][x.i].t;
+    if(t>=rows[off].t) m.push({time:t,position:"aboveBar",shape:"circle",color:css("--fall"),text:"停損"});
+  });
   m.sort((x,y)=>x.time<y.time?-1:1);
   candle.setMarkers(m);
 
@@ -434,6 +450,14 @@ function rotation(base, lev2, useStop=false){
   let pk=0, dd=0; vals.forEach(x=>{pk=Math.max(pk,x); dd=Math.min(dd,x/pk-1);});
   return {vals, log, ret:(vals.at(-1)-1)*100, dd:dd*100, sw, stopN, state:st, L, nq};
 }
+let STOP_CACHE=null;
+function stopLog(){
+  if(STOP_CACHE) return STOP_CACHE;
+  if(!ALL||!ALL.data||!ALL.data["S&P 500"]||!ALL.data["Nasdaq"]) return [];
+  const sp=ALL.data["S&P 500"];
+  STOP_CACHE=rotation(fullIdx(sp),false,true).log.filter(x=>x.act==="stop");
+  return STOP_CACHE;
+}
 function holdStats(rows, base){
   let pk=0, dd=0; for(let i=base;i<rows.length;i++){ const x=rows[i].c/rows[base].c; pk=Math.max(pk,x); dd=Math.min(dd,x/pk-1); }
   return {ret:(rows.at(-1).c/rows[base].c-1)*100, dd:dd*100};
@@ -449,8 +473,8 @@ function renderRot(){
   const col=x=>`<b style="color:${x>=0?css("--rise"):css("--fall")}">${fmt(x)}</b>`;
   const old25=rotation(b25,false,false), old5=rotation(bF,false,false);
   const stp25=rotation(b25,false,true),  stp5=rotation(bF,false,true);
-  const old2_25=R.lev2?rotation(b25,true,false):null, old2_5=R.lev2?rotation(bF,true,false):null;
-  const stp2_25=R.lev2?rotation(b25,true,true):null,  stp2_5=R.lev2?rotation(bF,true,true):null;
+  const old2_25=rotation(b25,true,false), old2_5=rotation(bF,true,false);
+  const stp2_25=rotation(b25,true,true),  stp2_5=rotation(bF,true,true);
   const mainOld25=R.lev2?old2_25:old25, mainOld5=R.lev2?old2_5:old5;
   const mainStp25=R.lev2?stp2_25:stp25, mainStp5=R.lev2?stp2_5:stp5;
   const active25=R.mode==="stop"?mainStp25:mainOld25, active5=R.mode==="stop"?mainStp5:mainOld5;
@@ -512,6 +536,31 @@ function renderRot(){
     const whyCell=isStop?`${x.why}（確立日 ${x.ftdDate}，${x.stopDd.toFixed(2)}%）`:x.why;
     return `<tr${isStop?' class="stop-row"':''}><td>${sp[x.i].t}</td><td>${x.from}</td><td>${toCell}</td><td>${whyCell}</td><td>${sp[x.i].c.toLocaleString()}</td><td>${active25.nq[x.i].toLocaleString()}</td><td>${(x.v*100).toFixed(1)}</td></tr>`;
   }).join("") || '<tr><td colspan="7" style="text-align:center;color:var(--mute)">起算日以來沒有切換</td></tr>';
+  const oneY=R.mode==="stop"?stp5:old5, twoY=R.mode==="stop"?stp2_5:old2_5;
+  const lastByYear={};
+  for(let i=bF;i<sp.length;i++) lastByYear[+sp[i].t.slice(0,4)]=i;
+  const years=Object.keys(lastByYear).map(Number).sort((a,b)=>a-b);
+  const yRows=[];
+  for(const y of years){
+    const end=lastByYear[y], start=lastByYear[y-1];
+    if(start==null || end<=start) continue;
+    const lastT=sp[end].t;
+    const lab=(end===sp.length-1 && lastT.slice(5)!=="12-31")?`${y}（至 ${+lastT.slice(5,7)}/${+lastT.slice(8,10)}）`:String(y);
+    yRows.push({
+      lab,
+      sp:(sp[end].c/sp[start].c-1)*100,
+      nq:(oneY.nq[end]/oneY.nq[start]-1)*100,
+      one:(oneY.vals[end-bF]/oneY.vals[start-bF]-1)*100,
+      two:(twoY.vals[end-bF]/twoY.vals[start-bF]-1)*100
+    });
+  }
+  document.getElementById("ryearCap").textContent = R.mode==="stop"
+    ? "每年報酬依日曆年計算（年底收盤對上一年年底收盤）；最後一年算到最新交易日。最佳策略欄顯示目前選中的新策略（加 2% 停損）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。"
+    : "每年報酬依日曆年計算（年底收盤對上一年年底收盤）；最後一年算到最新交易日。最佳策略欄顯示目前選中的舊策略（現行不停損）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。";
+  const cell=x=>`<td>${col(x)}</td>`;
+  document.getElementById("ryears").innerHTML = yRows.map(r=>
+    `<tr><td>${r.lab}</td>${cell(r.sp)}${cell(r.nq)}${cell(r.one)}${cell(r.two)}</tr>`
+  ).join("") + `<tr class="total"><td>${FL}</td>${cell(hs5.ret)}${cell(hn5.ret)}${cell(oneY.ret)}${cell(twoY.ret)}</tr>`;
 }
 function buildRotParams(){
   const pr=document.getElementById("rparams");
