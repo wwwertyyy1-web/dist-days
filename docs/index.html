@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>美股大盤進出策略</title>
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--rise:#1f9d62;--fall:#d6322e;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4;--fed-hike:rgba(214,150,50,.20);--fed-cut:rgba(70,130,190,.18);--stop-line:#d6338a}
-@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--rise:#34b57a;--fall:#ef5350;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff;--fed-hike:rgba(214,150,50,.26);--fed-cut:rgba(80,160,220,.24);--stop-line:#f472b6}}
+:root{--bg:#f6f7f9;--panel:#fff;--ink:#1b2430;--mute:#6b7685;--line:#dde1e7;--up:#d6322e;--down:#1f9d62;--rise:#1f9d62;--fall:#d6322e;--dist:#5b3fd1;--stall:#e08a00;--gone:#a7aeb9;--ftd:#0a7ea4;--fed-hike:rgba(214,150,50,.20);--fed-cut:rgba(70,130,190,.18);--stop-line:#d6338a;--lev2-line:#c2410c;--lev2-band:rgba(194,65,12,.16)}
+@media (prefers-color-scheme:dark){:root{--bg:#12161c;--panel:#1a2029;--ink:#e6e9ee;--mute:#8b95a3;--line:#2b3340;--up:#ef5350;--down:#34b57a;--rise:#34b57a;--fall:#ef5350;--dist:#9a85ff;--stall:#f0a030;--gone:#5b6573;--ftd:#4cc3ff;--fed-hike:rgba(214,150,50,.26);--fed-cut:rgba(80,160,220,.24);--stop-line:#f472b6;--lev2-line:#fb923c;--lev2-band:rgba(251,146,60,.20)}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Noto Sans TC",system-ui,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 40px}
 h1{font-size:22px;margin:0 0 4px}
 .sub{color:var(--mute);font-size:13px;margin-bottom:16px}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .tabs button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:7px 16px;border-radius:6px;font:inherit;cursor:pointer}
 .tabs button[aria-selected=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .stat{display:flex;gap:28px;flex-wrap:wrap;align-items:baseline;margin-bottom:12px}
@@ -40,9 +40,9 @@ th{color:var(--mute);font-weight:500;font-size:12.5px}
 .scroll-y table{border:none;border-radius:0;overflow:visible;border-collapse:separate;border-spacing:0}
 .scroll-y thead{position:sticky;top:0;z-index:5;background:var(--panel)}
 .scroll-y thead th{background:var(--panel);box-shadow:0 1px 0 var(--line),0 -12px 0 8px var(--panel)}
-#ryears tr.total td{font-weight:700;border-top:2px solid var(--line)}
-#ryears td.best-yr b{position:relative;display:inline-block;z-index:1}
-#ryears td.best-yr b::before{content:"★";position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);font-size:1.85em;line-height:1;color:#ffc400;opacity:.4;pointer-events:none;z-index:-1}
+#ryears tr.total td,#lyears tr.total td{font-weight:700;border-top:2px solid var(--line)}
+#ryears td.best-yr b,#lyears td.best-yr b{position:relative;display:inline-block;z-index:1}
+#ryears td.best-yr b::before,#lyears td.best-yr b::before{content:"★";position:absolute;left:50%;top:50%;transform:translate(-50%,-52%);font-size:1.85em;line-height:1;color:#ffc400;opacity:.4;pointer-events:none;z-index:-1}
 h2{font-size:16px;margin:22px 0 8px}
 .hint{color:var(--mute);font-size:13px;margin:-4px 0 8px}
 #note{color:var(--up);font-size:13px;margin-bottom:10px}
@@ -96,8 +96,7 @@ h2{font-size:16px;margin:22px 0 8px}
     <div class="legend" id="rlegend">
       <span><i style="background:#1a73e8"></i>S&amp;P 500（<span class="firstLbl">2021/11/24</span> = 100）</span>
       <span><i style="background:var(--ftd)"></i>Nasdaq（<span class="firstLbl">2021/11/24</span> = 100）</span>
-      <span id="rlegStratItem"><i style="background:var(--dist)"></i><span id="rlegStrat">舊策略（現行）</span></span>
-      <span id="rlegStratStopItem"><i style="background:var(--stop-line)"></i><span id="rlegStratStop">新策略（加 2% 停損）</span></span>
+      <span id="rlegStratStopItem"><i style="background:var(--stop-line)"></i><span id="rlegStratStop">最佳策略</span></span>
       <span><b style="color:var(--ftd)">▲</b> 換進那斯達克</span>
       <span><b style="color:#1a73e8">▼</b> 換成標普</span>
       <span id="rlegCash"><b style="color:var(--fall)">■</b> 換成 BOXX</span>
@@ -109,9 +108,8 @@ h2{font-size:16px;margin:22px 0 8px}
     <div class="params" id="rparams"></div>
     <h2>最佳策略結果</h2>
     <div id="rsum" style="font-size:14px;margin:-2px 0 8px">起算日 <input type="date" class="baseDate" value="2025-01-01" aria-label="最佳策略起算日" style="font:inherit;font-size:13px;padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)"> <span class="baseMsg" style="color:var(--down);font-size:13px"></span><div id="rsumA" style="margin-top:4px"></div><div id="rsumB"></div></div>
-    <div class="hint">舊策略（現行規則，每次 100% 換到同一標的，皆於訊號當天收盤成交）：① S&amp;P 500 漲勢確立 → 換進 Nasdaq。② 持有 Nasdaq 時，Nasdaq 頭部確立 → 換成 S&amp;P 500。③ 持有 S&amp;P 500 時，Nasdaq 漲勢確立 → 換回 Nasdaq。④ S&amp;P 500 頭部確立 → 換成<span class="cashWord"> BOXX</span>，等下一次 S&amp;P 500 漲勢確立再換進 Nasdaq。兩指數訊號分別照各自分頁規則（S&amp;P 500 漲勢確立門檻 0.8%、只看出貨日；Nasdaq 門檻 1.25%、出貨日或死亡交叉）。同日順序：S&amp;P 500 頭部、S&amp;P 500 漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。起手 100% S&amp;P 500，直到第一個訊號。兩倍模式：換進 Nasdaq 用兩倍，自進場起兩倍部位上漲達停利比例就換回一倍；S&amp;P 500 與現金部位一律一倍。</div>
-    <div class="hint">新策略（加 2% 停損＋快速再進場）：沿用舊策略全部規則，並於「S&amp;P 500 頭部」與「S&amp;P 500 漲勢確立」之間加上停損機制：① 停損條件：由漲勢確立換進 Nasdaq 後，若當日之後 Nasdaq 收盤低於確立日 Nasdaq 收盤超過 2%，當天收盤停損換成<span class="cashWord"> BOXX</span>。② 解除與清除：進場後只要 Nasdaq 收盤創下高於確立日收盤的新高，這筆持股的停損就解除；若因 Nasdaq 頭部換成 S&amp;P 500，停損也一併解除。③ 停損後快速再確立：停損在現金期間，若尚未出現官方 S&amp;P 500 頭部，從停損隔日起第一個 S&amp;P 500 收漲日當作反彈第 1 天（盤中跌破前低則重置），第 2 天起只要 S&amp;P 500 成交量大於前一天、且（漲幅 ≥ 0.8% 或收盤創歷史新高），當天收盤就買回 Nasdaq；等待期間若出現官方 S&amp;P 500 頭部，改回官方第 4 至 15 天確立規則。</div>
-    <div class="hint">注意：不計手續費與指數股息。<span class="cashHint">現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。</span>當日收盤停損在實務上須於收盤前幾分鐘確認跌幅才下單。兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際兩倍 ETF（例如 QLD）追蹤 Nasdaq-100，還有費用與借貸成本。兩組規則均參考過歷史資料設計，有過度擬合的風險。</div>
+    <div class="hint">最佳策略（每次 100% 換到同一標的，皆於訊號當天收盤成交）：① S&amp;P 500 漲勢確立 → 換進 Nasdaq。② 持有 Nasdaq 時，Nasdaq 頭部確立 → 換成 S&amp;P 500。③ 持有 S&amp;P 500 時，Nasdaq 漲勢確立 → 換回 Nasdaq。④ S&amp;P 500 頭部確立 → 換成<span class="cashWord"> BOXX</span>，等下一次 S&amp;P 500 漲勢確立再換進 Nasdaq。⑤ 由漲勢確立換進 Nasdaq 後，若當日之後 Nasdaq 收盤低於確立日 Nasdaq 收盤超過 2%，當天收盤停損換成<span class="cashWord"> BOXX</span>；進場後只要 Nasdaq 收盤創下高於確立日收盤的新高，這筆停損就解除；若因 Nasdaq 頭部換成 S&amp;P 500，停損也一併解除。⑥ 停損後快速買回：從停損隔日起，第一個 S&amp;P 500 收漲日當作反彈第 1 天（盤中跌破前低則重置），第 2 天起只要 S&amp;P 500 成交量大於前一天、且（漲幅 ≥ 0.8% 或收盤創歷史新高），並且當天 Nasdaq 收盤不高于停損當日收盤，就買回 Nasdaq；官方 S&amp;P 500 漲勢確立仍可買回，即使價位較高。等待期間即使出現 S&amp;P 500 頭部，仍繼續用快速買回規則，不必改等官方確立。兩指數訊號分別照各自分頁規則（S&amp;P 500 漲勢確立門檻 0.8%、只看出貨日；Nasdaq 門檻 1.25%、出貨日或死亡交叉）。同日順序：S&amp;P 500 頭部、2% 停損、S&amp;P 500 漲勢確立、Nasdaq 頭部、Nasdaq 漲勢確立。起手 100% S&amp;P 500，直到第一個訊號。兩倍模式：換進 Nasdaq 用兩倍，自進場起兩倍部位上漲達停利比例就換回一倍；S&amp;P 500 與現金部位一律一倍。</div>
+    <div class="hint">注意：不計手續費與指數股息。<span class="cashHint">現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。</span>當日收盤停損在實務上須於收盤前幾分鐘確認跌幅才下單。兩倍是用 Nasdaq 每日漲跌乘以 2 模擬，實際兩倍 ETF（例如 QLD）追蹤 Nasdaq-100，還有費用與借貸成本。規則參考過歷史資料設計，有過度擬合的風險。</div>
     <div class="hint" id="rcashNote">2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替</div>
     <div class="hint" id="rtableCap" style="margin:10px 0 6px;color:var(--ink);font-weight:600"></div>
     <div class="scroll scroll-y"><table>
@@ -123,6 +121,44 @@ h2{font-size:16px;margin:22px 0 8px}
     <div class="scroll"><table>
       <thead><tr><th>年份</th><th>標普大盤</th><th>那斯達克大盤</th><th>標普進出</th><th>那斯達克進出</th><th>最佳策略</th><th>最佳策略 2 倍</th></tr></thead>
       <tbody id="ryears"></tbody>
+    </table></div>
+  </div>
+  <div id="lev2View" style="display:none">
+    <div id="lstate" style="font-size:15px;margin-bottom:10px"></div>
+    <div id="lchart" style="height:480px;background:var(--panel);border:1px solid var(--line);border-radius:8px"></div>
+    <div class="legend" id="llegend">
+      <span><i style="background:#1a73e8"></i>S&amp;P 500（<span class="firstLbl">2021/11/24</span> = 100）</span>
+      <span><i style="background:var(--ftd)"></i>Nasdaq（<span class="firstLbl">2021/11/24</span> = 100）</span>
+      <span><i style="background:var(--stop-line)"></i>最佳策略</span>
+      <span><i style="background:var(--lev2-line)"></i>最佳2倍槓桿策略</span>
+      <span><b style="color:var(--ftd)">▲</b> 換進那斯達克</span>
+      <span><b style="color:#1a73e8">▼</b> 換成標普</span>
+      <span id="llegCash"><b style="color:var(--fall)">■</b> 換成 BOXX</span>
+      <span id="llegStop"><b style="color:var(--fall)">●</b> 停損換成<span class="cashWord"> BOXX</span></span>
+      <span><i class="band" style="background:var(--lev2-band)"></i>底色（偏橙紅）＝持有那斯達克且當天以 2 倍計價</span>
+      <span><i class="band" style="background:var(--fed-hike)"></i>橙＝聯準會升息循環</span>
+      <span><i class="band" style="background:var(--fed-cut)"></i>藍＝降息循環</span>
+    </div>
+    <h2>最佳2倍槓桿策略結果</h2>
+    <div id="lsum" style="font-size:14px;margin:-2px 0 8px">起算日 <input type="date" class="baseDate" value="2025-01-01" aria-label="最佳2倍槓桿策略起算日" style="font:inherit;font-size:13px;padding:1px 4px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink)"> <span class="baseMsg" style="color:var(--down);font-size:13px"></span><div id="lsumA" style="margin-top:4px"></div><div id="lsumB"></div></div>
+    <div class="hint">最佳2倍槓桿策略以「最佳策略」（停損後不追高）為底：部位切換規則完全相同。只有在持有 Nasdaq 時，若前一日收盤已同時滿足 ① Nasdaq 收盤在 200 日均線之上、② 200 日均線近 20 個交易日上漲超過 1%、③ 14 日 RSI 不超過 65，隔日才改用 2 倍計價。條件以當日收盤計算、隔日才生效，沒有用到未來資料。不滿足條件時，持股仍是 1 倍 Nasdaq；標普與<span class="cashWord"> BOXX</span>部位一律 1 倍。</div>
+    <div class="hint">兩倍是用 Nasdaq 綜合指數每日漲跌乘以 2，再扣年費 0.95%（平均分到 252 個交易日）模擬，不是直接用 QLD 的歷史價格。實際的 QLD 追蹤的是 Nasdaq-100 的 2 倍，還有追蹤誤差、借貸成本與滑價，報酬通常會再低一點。規則參考過歷史資料設計，有過度擬合的風險。<span class="cashHint">現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。</span></div>
+    <div class="hint cashNote" id="lcashNote">2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替</div>
+    <div class="hint" id="ltableCap" style="margin:10px 0 6px;color:var(--ink);font-weight:600">切換明細：最佳2倍槓桿策略（部位切換與最佳策略相同；停損列已標示；淨值為含 2 倍擇時後的結果）</div>
+    <div class="scroll scroll-y"><table>
+      <thead><tr><th>日期</th><th>從</th><th>換到</th><th>原因</th><th>S&amp;P 500 收盤</th><th>Nasdaq 收盤</th><th>策略淨值（<span class="baseLbl">2025/1/1</span> = 100）</th></tr></thead>
+      <tbody id="ltable"></tbody>
+    </table></div>
+    <div class="hint" id="lepCap" style="margin:16px 0 6px;color:var(--ink);font-weight:600">兩倍區間：每次開 2 倍到改回 1 倍（或策略出場）的段落</div>
+    <div class="scroll scroll-y"><table>
+      <thead><tr><th>開始</th><th>結束</th><th>天數</th><th>同期 1 倍報酬</th><th>2 倍報酬</th><th>結束原因</th></tr></thead>
+      <tbody id="leps"></tbody>
+    </table></div>
+    <h2>每年報酬</h2>
+    <div class="hint" id="lyearCap"></div>
+    <div class="scroll"><table>
+      <thead><tr><th>年份</th><th>標普大盤</th><th>那斯達克大盤</th><th>最佳策略</th><th>最佳2倍槓桿策略</th></tr></thead>
+      <tbody id="lyears"></tbody>
     </table></div>
   </div>
 </main>
@@ -415,8 +451,8 @@ function render(){
   }).join("") || '<tr><td colspan="5" style="text-align:center;color:var(--mute)">目前沒有有效出貨日</td></tr>';
 }
 
-const R = {lev2:false, tp:20, mode:"stop", showStop:true, showOld:true};
-let rchart=null, rS=null, rN=null, rStrat=null, rStratStop=null, rFed=null;
+const R = {lev2:false, tp:20};
+let rchart=null, rS=null, rN=null, rStrat=null, rFed=null;
 function hasCashProxy(){ const d=ALL&&ALL.data; return !!(d&&((d.BOXX&&d.BOXX.length)||(d.BIL&&d.BIL.length)||(d.IRX&&d.IRX.length))); }
 function cashWord(){ return hasCashProxy()?"BOXX":"現金"; }
 function mapClose(rows){ const m={}; (rows||[]).forEach(r=>{ if(r&&r.t!=null&&r.c!=null) m[r.t]=r.c; }); return m; }
@@ -450,10 +486,13 @@ function applyCashWording(){
   if(leg) leg.innerHTML=`<b style="color:var(--fall)">■</b> ${phrase}`;
   const legs=document.getElementById("rlegStop");
   if(legs) legs.innerHTML=`<b style="color:var(--fall)">●</b> ${stopPhrase}`;
+  const lleg=document.getElementById("llegCash");
+  if(lleg) lleg.innerHTML=`<b style="color:var(--fall)">■</b> ${phrase}`;
+  const llegs=document.getElementById("llegStop");
+  if(llegs) llegs.innerHTML=`<b style="color:var(--fall)">●</b> ${stopPhrase}`;
   document.querySelectorAll(".cashWord").forEach(el=>el.textContent=has?" BOXX":"現金");
   document.querySelectorAll(".cashHint").forEach(el=>el.textContent=has?"現金部位改持有 BOXX（2007/5 BIL 上市前以三個月期美國國庫券利率代替；2022/12 BOXX 上市前以 BIL 代替，用還原收盤把配息算進去）。":"現金利息以 0% 計。");
-  const note=document.getElementById("rcashNote");
-  if(note) note.style.display=has?"":"none";
+  document.querySelectorAll(".cashNote, #rcashNote").forEach(note=>{ note.style.display=has?"":"none"; });
 }
 let ROT_EV=null;  // 兩個指數的訊號（只算一次）
 function rotEvents(){
@@ -474,13 +513,13 @@ function rotEvents(){
     if(c.ftd!==null){ const f=spIdx[nqRows[c.ftd].t]; if(f!==undefined) S.nqFtd.add(f); } });
   ROT_EV={...S,nq,pmaxSp}; return ROT_EV;
 }
-// 最佳策略（useStop=false 舊策略／useStop=true 新策略：2% 停損、創新高解除、停損後第2日起快速再確立）
-function rotation(base, lev2, useStop=false){
+// 目前頁面最佳策略呼叫 rotation(base, lev2, true, true, true)：2% 停損、創新高解除、停損後不追高快速再確立（不得高于停損價；官方確立仍可買回）；keepScanOnTop 時，停損後空手遇到標普頭部不改回官方確立，繼續快速買回。useStop/noChase/keepScanOnTop 仍可單獨關閉以重現舊版規則。
+function rotation(base, lev2, useStop=false, noChase=false, keepScanOnTop=false){
   const sp=ALL.data["S&P 500"], n=sp.length, E=rotEvents(), nq=E.nq, T=R.tp/100;
   const boxx=alignCarry(sp, mapClose(ALL.data.BOXX)), bil=alignCarry(sp, mapClose(ALL.data.BIL)), irx=alignCarry(sp, mapClose(ALL.data.IRX));
   const cashName=cashWord();
   let w=1, st="init", L=1, legv=1, sw=0, stopN=0;
-  let prot=null, scanOn=false, att=null;
+  let prot=null, scanOn=false, att=null, lastStopPx=null;
   const vals=[1], log=[];
   const NAME={init:"S&P 500（起手）",N:"Nasdaq",S:"S&P 500",cash:cashName};
   const add=(i,act,from,to,why,extra)=>{ sw++; if(act==="stop") stopN++; log.push({i,act,from,to,why,v:w,...(extra||{})}); };
@@ -513,22 +552,25 @@ function rotation(base, lev2, useStop=false){
       continue;
     }
     if(E.spTop.has(i)){
-      att=null; scanOn=false;
-      if(st!=="cash"){ st="cash"; L=1; prot=null; add(i,"cash",from,cashName,"S&P 500 頭部確立"); }
-      continue;
+      if(!(keepScanOnTop && st==="cash" && scanOn)){
+        att=null; scanOn=false;
+        if(st!=="cash"){ st="cash"; L=1; prot=null; add(i,"cash",from,cashName,"S&P 500 頭部確立"); }
+        continue;
+      }
     }
     if(st==="N" && prot!==null){
       if(!prot.disarmed && i>prot.ftd_i && nq[i]>prot.nq_ftd_close) prot.disarmed=true;
       if(!prot.disarmed && i>prot.ftd_i && nq[i]<prot.nq_ftd_close*0.98){
         const dd=(nq[i]/prot.nq_ftd_close-1)*100, ftdDate=sp[prot.ftd_i].t;
-        st="cash"; L=1; prot=null; att=null; scanOn=true;
+        st="cash"; L=1; prot=null; att=null; scanOn=true; lastStopPx=nq[i];
         add(i,"stop",from,cashName,"停損：那斯達克收盤低於確立日收盤 2%",{ftdDate,stopDd:dd});
         continue;
       }
     }
     const custom=(scanOn && st==="cash") ? scanDay(i) : null;
-    if((E.spFtd.has(i) || custom) && st!=="N"){
-      const isCustom=!!(custom && !E.spFtd.has(i));
+    const customOk=custom && !(noChase && lastStopPx!=null && nq[i]>lastStopPx);
+    if((E.spFtd.has(i) || customOk) && st!=="N"){
+      const isCustom=!!(customOk && !E.spFtd.has(i));
       const why=!isCustom ? "S&P 500 漲勢確立"
         : custom.k<4 ? `S&P 500 漲勢確立（停損後快速確立，第 ${custom.k} 天）`
         : "S&P 500 漲勢確立（停損後重新確立）";
@@ -560,7 +602,7 @@ function entryText(x){
 function stratLog(){
   if(STRAT_CACHE) return STRAT_CACHE;
   if(!ALL||!ALL.data||!ALL.data["S&P 500"]||!ALL.data["Nasdaq"]) return {stops:[], entries:[]};
-  const log=rotation(fullIdx(ALL.data["S&P 500"]),false,true).log;
+  const log=rotation(fullIdx(ALL.data["S&P 500"]),false,true,true,true).log;
   STRAT_CACHE={stops:log.filter(x=>x.act==="stop"), entries:log.filter(x=>x.act==="nq")};
   return STRAT_CACHE;
 }
@@ -578,13 +620,9 @@ function renderRot(){
   document.querySelectorAll(".firstLbl").forEach(x=>x.textContent=`${dateLbl(sp[bF].t)} 收盤`);
   const fmt=x=>(x>=0?"+":"")+x.toFixed(2)+"%";
   const col=x=>`<b style="color:${x>=0?css("--rise"):css("--fall")}">${fmt(x)}</b>`;
-  const old25=rotation(b25,false,false), old5=rotation(bF,false,false);
-  const stp25=rotation(b25,false,true),  stp5=rotation(bF,false,true);
-  const old2_25=rotation(b25,true,false), old2_5=rotation(bF,true,false);
-  const stp2_25=rotation(b25,true,true),  stp2_5=rotation(bF,true,true);
-  const mainOld25=R.lev2?old2_25:old25, mainOld5=R.lev2?old2_5:old5;
-  const mainStp25=R.lev2?stp2_25:stp25, mainStp5=R.lev2?stp2_5:stp5;
-  const active25=R.mode==="stop"?mainStp25:mainOld25, active5=R.mode==="stop"?mainStp5:mainOld5;
+  const best25=rotation(b25,false,true,true,true), best5=rotation(bF,false,true,true,true);
+  const best2_25=rotation(b25,true,true,true,true), best2_5=rotation(bF,true,true,true,true);
+  const main25=R.lev2?best2_25:best25, main5=R.lev2?best2_5:best5;
   const nqB=nqRows.findIndex(r=>r.t===sp[b25].t);
   const hs25=holdStats(sp,b25), hs5=holdStats(sp,bF), hn25=holdStats(nqRows,Math.max(0,nqB)), hn5=holdStats(nqRows,Math.max(0,nqRows.findIndex(r=>r.t===sp[bF].t)));
   if(!rchart){
@@ -595,55 +633,37 @@ function renderRot(){
     rFed=addFedBg(rchart);
     const o={lineWidth:2,priceLineVisible:false};
     rS=rchart.addLineSeries({...o,color:"#1a73e8"}); rN=rchart.addLineSeries({...o,color:css("--ftd")});
-    rStrat=rchart.addLineSeries({...o,color:css("--dist"),lineWidth:2});
-    rStratStop=rchart.addLineSeries({...o,color:css("--stop-line"),lineWidth:3});
+    rStrat=rchart.addLineSeries({...o,color:css("--stop-line"),lineWidth:3});
   }
-  rStrat.applyOptions({lineWidth:R.mode==="old"?3:2});
-  rStratStop.applyOptions({lineWidth:R.mode==="stop"?3:2});
   // 圖一律從 2007 年第一個交易日開始畫（資料不夠早就從第一天），幾條線都以前一天收盤 = 100；上面的起算日只影響累計漲跌的數字
   rFed.setData(fedBars(sp.slice(pF).map(r=>r.t)));
   rS.setData(sp.slice(pF).map(r=>({time:r.t,value:r.c/sp[bF].c*100})));
-  rN.setData(sp.slice(pF).map((r,k)=>({time:r.t,value:old5.nq[pF+k]/old5.nq[bF]*100})));
-  const oldSeriesData=R.showOld ? mainOld5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF) : [];
-  const stpSeriesData=R.showStop ? mainStp5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF) : [];
-  rStrat.setData(oldSeriesData);
-  rStratStop.setData(stpSeriesData);
+  rN.setData(sp.slice(pF).map((r,k)=>({time:r.t,value:best5.nq[pF+k]/best5.nq[bF]*100})));
+  rStrat.setData(main5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF));
   const mkMarkers=log=>log.map(x=>{ const m=ROT_ACT[x.act]; return {time:sp[x.i].t,position:m.pos,shape:m.shape,color:m.color(),text:m.text}; });
-  rStrat.setMarkers(R.mode==="old" && R.showOld ? mkMarkers(mainOld5.log) : []);
-  rStratStop.setMarkers(R.mode==="stop" && R.showStop ? mkMarkers(mainStp5.log) : []);
-  document.getElementById("rlegStrat").textContent=R.lev2?`舊策略（現行・兩倍停利 ${R.tp}%）`:"舊策略（現行）";
-  document.getElementById("rlegStratStop").textContent=R.lev2?`新策略（加 2% 停損・兩倍停利 ${R.tp}%）`:"新策略（加 2% 停損）";
-  document.getElementById("rlegStratItem").style.display=R.showOld?"":"none";
-  document.getElementById("rlegStratStopItem").style.display=R.showStop?"":"none";
-  document.getElementById("rlegStop").style.display=R.mode==="stop"?"":"none";
+  rStrat.setMarkers(mkMarkers(main5.log));
+  document.getElementById("rlegStratStop").textContent=R.lev2?`最佳策略（兩倍停利 ${R.tp}%）`:"最佳策略";
+  document.getElementById("rlegStop").style.display="";
   document.getElementById("rlegTp").style.display=R.lev2?"":"none";
   rchart.timeScale().fitContent();
-  // 目前配置：看 2007 年起的完整結果
   const fmtPos=m=>m.state==="cash"?cashWord():m.state==="S"?"S&P 500 100%":m.state==="N"?`Nasdaq 100%${R.lev2?(m.L>1?"（兩倍）":"（一倍）"):""}`:"S&P 500 100%（尚未出現訊號）";
-  const last=active5.log.at(-1), other5=R.mode==="stop"?mainOld5:mainStp5;
-  const selLbl=R.mode==="stop"?"新策略・加 2% 停損":"舊策略・現行";
-  const othLbl=R.mode==="stop"?"舊策略":"新策略";
-  const diffNote=(other5.state!==active5.state || other5.L!==active5.L)?`　｜　${othLbl}目前為 <b>${fmtPos(other5)}</b>`:"";
-  document.getElementById("rstate").innerHTML=`目前配置（${selLbl}）：<b>${fmtPos(active5)}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}${diffNote}`;
+  const last=main5.log.at(-1);
+  document.getElementById("rstate").innerHTML=`目前配置：<b>${fmtPos(main5)}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}`;
   const line=(lab,a,b)=>`${lab}：${BL} 至今 ${col(a.ret)}（最大回撤 ${a.dd.toFixed(2)}%），${FL} ${col(b.ret)}（最大回撤 ${b.dd.toFixed(2)}%）`;
-  document.getElementById("rsumA").innerHTML=`<b style="color:var(--stop-line)">新策略 1 倍（加 2% 停損）</b>：${BL} 至今 ${col(stp25.ret)}（最大回撤 ${stp25.dd.toFixed(2)}%），${FL} ${col(stp5.ret)}（最大回撤 ${stp5.dd.toFixed(2)}%），切換 ${stp25.sw} 次（停損 ${stp25.stopN} 次）／ ${stp5.sw} 次（停損 ${stp5.stopN} 次）`;
+  document.getElementById("rsumA").innerHTML=`<b style="color:var(--stop-line)">最佳策略 1 倍</b>：${BL} 至今 ${col(best25.ret)}（最大回撤 ${best25.dd.toFixed(2)}%），${FL} ${col(best5.ret)}（最大回撤 ${best5.dd.toFixed(2)}%），切換 ${best25.sw} 次（停損 ${best25.stopN} 次）／ ${best5.sw} 次（停損 ${best5.stopN} 次）`;
   document.getElementById("rsumB").innerHTML=[
-    `<b style="color:var(--dist)">舊策略 1 倍（現行）</b>：${BL} 至今 ${col(old25.ret)}（最大回撤 ${old25.dd.toFixed(2)}%），${FL} ${col(old5.ret)}（最大回撤 ${old5.dd.toFixed(2)}%），切換 ${old25.sw} 次 ／ ${old5.sw} 次`,
-    R.lev2?line(`新策略 兩倍模式（加 2% 停損，停利 ${R.tp}%）`,stp2_25,stp2_5)+`，切換 ${stp2_25.sw} 次（停損 ${stp2_25.stopN} 次）／ ${stp2_5.sw} 次（停損 ${stp2_5.stopN} 次）`:"",
-    R.lev2?line(`舊策略 兩倍模式（現行，停利 ${R.tp}%）`,old2_25,old2_5)+`，切換 ${old2_25.sw} 次 ／ ${old2_5.sw} 次`:"",
+    R.lev2?line(`最佳策略 兩倍模式（停利 ${R.tp}%）`,best2_25,best2_5)+`，切換 ${best2_25.sw} 次（停損 ${best2_25.stopN} 次）／ ${best2_5.sw} 次（停損 ${best2_5.stopN} 次）`:"",
     line("單純持有 S&P 500",hs25,hs5), line("單純持有 Nasdaq",hn25,hn5),
     `<span style="color:var(--mute)">圖從 ${sp[pF].t} 開始畫，所有曲線皆以 ${sp[bF].t} 收盤為 100；${FL}以 ${sp[bF].t} 收盤為基準${pF>bF?"（之前的資料只用來算均線與訊號）":""}；${BL} 至今以 ${sp[b25].t} 收盤為基準，策略從起算日起手 100% S&P 500，直到第一個訊號</span>`
   ].filter(Boolean).join("<br>");
-  document.getElementById("rtableCap").textContent = R.mode==="stop"
-    ? "切換明細：新策略（加 2% 停損，停損列已標示；可在上方「明細與圖上標記」切換為舊策略）"
-    : "切換明細：舊策略（現行不停損；可在上方「明細與圖上標記」切換回新策略）";
-  document.getElementById("rtable").innerHTML=active25.log.slice().reverse().map(x=>{
+  document.getElementById("rtableCap").textContent = "切換明細：最佳策略（含 2% 停損與停損後不追高；停損列已標示）";
+  document.getElementById("rtable").innerHTML=main25.log.slice().reverse().map(x=>{
     const isStop=x.act==="stop";
     const toCell=isStop?`<b style="color:var(--fall)">${x.to}（停損）</b>`:`<b style="color:${ROT_ACT[x.act].color()}">${x.to}</b>`;
     const whyCell=isStop?`${x.why}（確立日 ${x.ftdDate}，${x.stopDd.toFixed(2)}%）`:x.why;
-    return `<tr${isStop?' class="stop-row"':''}><td>${sp[x.i].t}</td><td>${x.from}</td><td>${toCell}</td><td>${whyCell}</td><td>${sp[x.i].c.toLocaleString()}</td><td>${active25.nq[x.i].toLocaleString()}</td><td>${(x.v*100).toFixed(1)}</td></tr>`;
+    return `<tr${isStop?' class="stop-row"':''}><td>${sp[x.i].t}</td><td>${x.from}</td><td>${toCell}</td><td>${whyCell}</td><td>${sp[x.i].c.toLocaleString()}</td><td>${main25.nq[x.i].toLocaleString()}</td><td>${(x.v*100).toFixed(1)}</td></tr>`;
   }).join("") || '<tr><td colspan="7" style="text-align:center;color:var(--mute)">起算日以來沒有切換</td></tr>';
-  const oneY=R.mode==="stop"?stp5:old5, twoY=R.mode==="stop"?stp2_5:old2_5;
+  const oneY=best5, twoY=best2_5;
   const nqMap={}; nqRows.forEach((r,i)=>nqMap[r.t]=i);
   const spIdxSt=runIndexStrategy("S&P 500");
   const nqIdxSt=runIndexStrategy("Nasdaq");
@@ -673,9 +693,7 @@ function renderRot(){
   const spTrTot=(eqSp.at(-1)/eqSp[bF]-1)*100;
   const nqBase=Math.max(fullIdx(nqIdxSt.rows),0);
   const nqTrTot=(eqNq.at(-1)/eqNq[nqBase]-1)*100;
-  document.getElementById("ryearCap").textContent = R.mode==="stop"
-    ? "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX，規則與最佳策略相同）。最佳策略欄顯示目前選中的新策略（加 2% 停損）。排除「最佳策略 2 倍」後，該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。"
-    : "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX，規則與最佳策略相同）。最佳策略欄顯示目前選中的舊策略（現行不停損）。排除「最佳策略 2 倍」後，該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。";
+  document.getElementById("ryearCap").textContent = "每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有；標普進出、那斯達克進出是各指數分頁自己的策略（含 2% 停損與快速買回，空手期間持有 BOXX）。最佳策略欄是網站目前的輪動規則（含 2% 停損，以及停損後不追高：快速買回只在那斯達克收盤不高于停損價時才准許，等待期間即使出現標普頭部仍可用快速買回，官方確立日也可買回）。排除「最佳策略 2 倍」後，該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。兩倍欄一律用兩倍模式（停利 "+R.tp+"%，與上方勾選無關）。";
   const yKeys=["spHold","nqHold","spTr","nqTr","one"];
   const yStar=r=>{
     const vals=yKeys.map(k=>r[k]).filter(v=>v!=null&&isFinite(v));
@@ -690,8 +708,219 @@ function renderRot(){
     `<tr><td>${r.lab}</td>${rowCells(r,yStar(r))}</tr>`
   ).join("") + `<tr class="total"><td>${FL}</td>${rowCells({spHold:hs5.ret,nqHold:hn5.ret,spTr:spTrTot,nqTr:nqTrTot,one:oneY.ret,two:twoY.ret},yStar({spHold:hs5.ret,nqHold:hn5.ret,spTr:spTrTot,nqTr:nqTrTot,one:oneY.ret}))}</tr>`;
 }
+
+
+const LEV2_FEE_ANNUAL=0.0095, LEV2_FEE_DAILY=LEV2_FEE_ANNUAL/252;
+let LEV2_CACHE={};
+function smaArr(arr,w){
+  const out=new Array(arr.length).fill(null);
+  let s=0;
+  for(let i=0;i<arr.length;i++){
+    s+=arr[i];
+    if(i>=w) s-=arr[i-w];
+    if(i>=w-1) out[i]=s/w;
+  }
+  return out;
+}
+function wilderRsi(closes,w=14){
+  const n=closes.length, out=new Array(n).fill(null);
+  const gains=new Array(n).fill(0), losses=new Array(n).fill(0);
+  for(let i=1;i<n;i++){
+    const d=closes[i]-closes[i-1];
+    gains[i]=Math.max(d,0); losses[i]=Math.max(-d,0);
+  }
+  if(n<=w) return out;
+  let ag=0, al=0;
+  for(let i=1;i<=w;i++){ ag+=gains[i]; al+=losses[i]; }
+  ag/=w; al/=w;
+  out[w]=al===0?100:100-100/(1+ag/al);
+  for(let i=w+1;i<n;i++){
+    ag=(ag*(w-1)+gains[i])/w;
+    al=(al*(w-1)+losses[i])/w;
+    out[i]=al===0?100:100-100/(1+ag/al);
+  }
+  return out;
+}
+function highMask(nq){
+  const ma=smaArr(nq,200), rsi=wilderRsi(nq,14);
+  const mask=new Array(nq.length).fill(false);
+  for(let t=20;t<nq.length;t++){
+    if(ma[t]==null || ma[t-20]==null || rsi[t]==null) continue;
+    mask[t]=nq[t]>ma[t] && (ma[t]/ma[t-20]-1)>0.01 && rsi[t]<=65;
+  }
+  return mask;
+}
+function lev2Overlay(base){
+  if(LEV2_CACHE[base]) return LEV2_CACHE[base];
+  const one=rotation(base,false,true,true,true);
+  const sp=ALL.data["S&P 500"], nq=one.nq, n=sp.length;
+  const mask=highMask(nq);
+  const boxx=alignCarry(sp, mapClose(ALL.data.BOXX)), bil=alignCarry(sp, mapClose(ALL.data.BIL)), irx=alignCarry(sp, mapClose(ALL.data.IRX));
+  const byI={}; one.log.forEach(e=>{ byI[e.i]=e; });
+  const vals=[1], levOn=new Array(n).fill(false), eps=[];
+  let w=1, st="init", inEp=false, epS=0, r1=1, r2=1, epD=0;
+  const closeEp=(endI, sNow)=>{
+    let why="指標條件失效";
+    const ex=byI[endI];
+    if(ex && (ex.act==="stop"||ex.act==="cash"||ex.act==="sp")) why=`策略出場（${ex.why}）`;
+    else if(sNow!=="N") why="策略出場";
+    eps.push({start_i:epS,end_i:endI,start_t:sp[epS].t,end_t:sp[endI].t,days:epD,r1:(r1-1)*100,r2:(r2-1)*100,exit_why:why});
+    inEp=false;
+  };
+  for(let i=base+1;i<n;i++){
+    const s=st;
+    const rn=nq[i]/nq[i-1]-1, rs=sp[i].c/sp[i-1].c-1, rc=cashRet(i,boxx,bil,irx,sp);
+    let rDay;
+    if(s==="N" && mask[i-1]){
+      rDay=2*rn-LEV2_FEE_DAILY;
+      levOn[i]=true;
+      if(!inEp){ inEp=true; epS=i; r1=r2=1; epD=0; }
+      r1*=(1+rn); r2*=(1+rDay); epD++;
+    }else{
+      if(inEp) closeEp(i-1, s);
+      if(s==="N") rDay=rn;
+      else if(s==="S"||s==="init") rDay=rs;
+      else rDay=rc;
+    }
+    w*=(1+rDay);
+    vals.push(w);
+    const e=byI[i];
+    if(e){
+      if(e.act==="nq") st="N";
+      else if(e.act==="sp") st="S";
+      else if(e.act==="cash"||e.act==="stop") st="cash";
+    }
+  }
+  if(inEp){
+    eps.push({start_i:epS,end_i:n-1,start_t:sp[epS].t,end_t:sp[n-1].t,days:epD,r1:(r1-1)*100,r2:(r2-1)*100,exit_why:"持有至期末"});
+  }
+  let pk=0, dd=0; vals.forEach(x=>{ pk=Math.max(pk,x); dd=Math.min(dd,x/pk-1); });
+  const wr1=eps.length?eps.filter(e=>e.r2>e.r1).length/eps.length*100:null;
+  const d2=eps.reduce((a,e)=>a+e.days,0);
+  return LEV2_CACHE[base]={
+    vals, log:one.log, nq, mask, levOn, eps, state:st,
+    ret:(vals.at(-1)-1)*100, dd:dd*100,
+    sw:one.sw, stopN:one.stopN, epN:eps.length, epDays:d2, wr1,
+    one
+  };
+}
+
+let lchart=null, lS=null, lN=null, lBest=null, lLev=null, lFed=null, lBand=null;
+function addLev2Bg(ch){
+  const s=ch.addHistogramSeries({priceScaleId:"levbg",lastValueVisible:false,priceLineVisible:false,base:0,
+    autoscaleInfoProvider:()=>({priceRange:{minValue:0,maxValue:1}})});
+  ch.priceScale("levbg").applyOptions({visible:false,borderVisible:false,scaleMargins:{top:0,bottom:0}});
+  return s;
+}
+function renderLev2(){
+  applyCashWording();
+  const sp=ALL.data["S&P 500"], nqRows=ALL.data["Nasdaq"];
+  const b25=baseIdx(sp), BL=baseLabel(sp);
+  document.querySelectorAll(".baseLbl").forEach(x=>x.textContent=BL);
+  const bF=fullIdx(sp), pF=fullFirst(sp), FL=fullLabel(sp);
+  document.querySelectorAll(".firstLbl").forEach(x=>x.textContent=`${dateLbl(sp[bF].t)} 收盤`);
+  const fmt=x=>(x>=0?"+":"")+x.toFixed(2)+"%";
+  const col=x=>`<b style="color:${x>=0?css("--rise"):css("--fall")}">${fmt(x)}</b>`;
+  const two25=lev2Overlay(b25), two5=lev2Overlay(bF);
+  const one25=two25.one, one5=two5.one;
+  const nqB=nqRows.findIndex(r=>r.t===sp[b25].t);
+  const hs25=holdStats(sp,b25), hs5=holdStats(sp,bF);
+  const hn25=holdStats(nqRows,Math.max(0,nqB)), hn5=holdStats(nqRows,Math.max(0,nqRows.findIndex(r=>r.t===sp[bF].t)));
+  if(!lchart){
+    lchart=LightweightCharts.createChart(document.getElementById("lchart"),{
+      layout:{background:{color:css("--panel")},textColor:css("--mute")},
+      grid:{vertLines:{color:css("--line")},horzLines:{color:css("--line")}},
+      rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line"),minBarSpacing:0.01},autoSize:true});
+    lFed=addFedBg(lchart);
+    lBand=addLev2Bg(lchart);
+    const o={lineWidth:2,priceLineVisible:false};
+    lS=lchart.addLineSeries({...o,color:"#1a73e8"});
+    lN=lchart.addLineSeries({...o,color:css("--ftd")});
+    lBest=lchart.addLineSeries({...o,color:css("--stop-line")});
+    lLev=lchart.addLineSeries({...o,color:css("--lev2-line"),lineWidth:3});
+  }
+  lFed.setData(fedBars(sp.slice(pF).map(r=>r.t)));
+  lBand.setData(sp.slice(pF).map((r,k)=>{
+    const i=pF+k;
+    return {time:r.t, value:two5.levOn[i]?1:0, color:two5.levOn[i]?css("--lev2-band"):"rgba(0,0,0,0)"};
+  }));
+  lS.setData(sp.slice(pF).map(r=>({time:r.t,value:r.c/sp[bF].c*100})));
+  lN.setData(sp.slice(pF).map((r,k)=>({time:r.t,value:two5.nq[pF+k]/two5.nq[bF]*100})));
+  lBest.setData(one5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF));
+  lLev.setData(two5.vals.map((v,k)=>({time:sp[bF+k].t,value:v*100})).slice(pF-bF));
+  const mkMarkers=log=>log.map(x=>{ const m=ROT_ACT[x.act]; if(!m) return null; return {time:sp[x.i].t,position:m.pos,shape:m.shape,color:m.color(),text:m.text}; }).filter(Boolean);
+  lLev.setMarkers(mkMarkers(two5.log));
+  lchart.timeScale().fitContent();
+  const cash=cashWord();
+  const posOf=two=>{
+    const held=two.state, next2x=held==="N" && two.mask[sp.length-1];
+    if(held==="cash") return cash;
+    if(held==="S"||held==="init") return "S&P 500 100%";
+    return next2x?"Nasdaq 100%（兩倍）":"Nasdaq 100%（一倍）";
+  };
+  const last=two5.log.at(-1);
+  document.getElementById("lstate").innerHTML=`目前配置：<b>${posOf(two5)}</b>${last?`（自 ${sp[last.i].t} ${last.why}）`:""}`;
+  const wrTxt=two=>{
+    if(!two.epN) return "尚未出現 2 倍區間";
+    const win=two.eps.filter(e=>e.r2>e.r1).length;
+    return `2 倍 ${two.epN} 段、共 ${two.epDays} 天，贏過同期 1 倍 ${two.wr1.toFixed(1)}%（${win}/${two.epN}）`;
+  };
+  document.getElementById("lsumA").innerHTML=`<b style="color:var(--lev2-line)">最佳2倍槓桿策略</b>：${BL} 至今 ${col(two25.ret)}（最大回撤 ${two25.dd.toFixed(2)}%），${FL} ${col(two5.ret)}（最大回撤 ${two5.dd.toFixed(2)}%），${wrTxt(two5)}`;
+  document.getElementById("lsumB").innerHTML=[
+    `<b style="color:var(--stop-line)">最佳策略 1 倍</b>：${BL} 至今 ${col(one25.ret)}（最大回撤 ${one25.dd.toFixed(2)}%），${FL} ${col(one5.ret)}（最大回撤 ${one5.dd.toFixed(2)}%），切換 ${one25.sw} 次（停損 ${one25.stopN} 次）／ ${one5.sw} 次（停損 ${one5.stopN} 次）`,
+    `單純持有 S&P 500：${BL} 至今 ${col(hs25.ret)}（最大回撤 ${hs25.dd.toFixed(2)}%），${FL} ${col(hs5.ret)}（最大回撤 ${hs5.dd.toFixed(2)}%）`,
+    `單純持有 Nasdaq：${BL} 至今 ${col(hn25.ret)}（最大回撤 ${hn25.dd.toFixed(2)}%），${FL} ${col(hn5.ret)}（最大回撤 ${hn5.dd.toFixed(2)}%）`,
+    `<span style="color:var(--mute)">兩倍為模型（2×那斯達克日報酬 − 年費 0.95%÷252），不是 QLD 實價。圖從 ${sp[pF].t} 開始畫，所有曲線皆以 ${sp[bF].t} 收盤為 100；${FL}以 ${sp[bF].t} 收盤為基準${pF>bF?"（之前的資料只用來算均線與訊號）":""}；${BL} 至今以 ${sp[b25].t} 收盤為基準，策略從起算日起手 100% S&P 500，直到第一個訊號</span>`
+  ].join("<br>");
+  const navAt=i=>two25.vals[i-b25];
+  document.getElementById("ltable").innerHTML=two25.log.slice().reverse().map(x=>{
+    const isStop=x.act==="stop";
+    const toCell=isStop?`<b style="color:var(--fall)">${x.to}（停損）</b>`:`<b style="color:${ROT_ACT[x.act].color()}">${x.to}</b>`;
+    const whyCell=isStop?`${x.why}（確立日 ${x.ftdDate}，${x.stopDd.toFixed(2)}%）`:x.why;
+    return `<tr${isStop?' class="stop-row"':''}><td>${sp[x.i].t}</td><td>${x.from}</td><td>${toCell}</td><td>${whyCell}</td><td>${sp[x.i].c.toLocaleString()}</td><td>${two25.nq[x.i].toLocaleString()}</td><td>${(navAt(x.i)*100).toFixed(1)}</td></tr>`;
+  }).join("") || '<tr><td colspan="7" style="text-align:center;color:var(--mute)">起算日以來沒有切換</td></tr>';
+  const epsShow=two25.eps.slice().reverse();
+  document.getElementById("leps").innerHTML=epsShow.map(e=>{
+    const beat=e.r2>e.r1;
+    return `<tr><td>${e.start_t}</td><td>${e.end_t}</td><td>${e.days}</td><td>${col(e.r1)}</td><td>${col(e.r2)}${beat?"　勝":""}</td><td>${e.exit_why}</td></tr>`;
+  }).join("") || '<tr><td colspan="6" style="text-align:center;color:var(--mute)">起算日以來沒有 2 倍區間</td></tr>';
+  document.getElementById("lepCap").textContent=`兩倍區間：每次開 2 倍到改回 1 倍（或策略出場）的段落（${BL} 以來 ${two25.epN} 段；表由新到舊）`;
+  const lastByYear={};
+  for(let i=bF;i<sp.length;i++) lastByYear[+sp[i].t.slice(0,4)]=i;
+  const years=Object.keys(lastByYear).map(Number).sort((a,b)=>b-a);
+  const yRows=[];
+  for(const y of years){
+    const end=lastByYear[y], start=lastByYear[y-1];
+    if(start==null || end<=start) continue;
+    const lastT=sp[end].t;
+    const lab=(end===sp.length-1 && lastT.slice(5)!=="12-31")?`${y}（至 ${+lastT.slice(5,7)}/${+lastT.slice(8,10)}）`:String(y);
+    yRows.push({
+      lab,
+      spHold:(sp[end].c/sp[start].c-1)*100,
+      nqHold:(one5.nq[end]/one5.nq[start]-1)*100,
+      one:(one5.vals[end-bF]/one5.vals[start-bF]-1)*100,
+      two:(two5.vals[end-bF]/two5.vals[start-bF]-1)*100
+    });
+  }
+  document.getElementById("lyearCap").textContent="每年報酬依日曆年計算（年底收盤對上一年年底收盤），由新到舊排列，最後一年算到最新交易日，最下列是全期合計。前兩欄是買進持有，最佳策略是 1 倍輪動（停損後不追高），最佳2倍槓桿策略是在同一套部位上、符合條件時才用 2 倍（模型：2×那斯達克日報酬 − 年費 0.95%）。該年最高報酬的欄位以半透明黃星標示（並列時一併標示）。";
+  const yKeys=["spHold","nqHold","one","two"];
+  const yStar=r=>{
+    const vals=yKeys.map(k=>r[k]).filter(v=>v!=null&&isFinite(v));
+    if(!vals.length) return {};
+    const mx=Math.max(...vals.map(v=>Math.round(v*100)/100));
+    const f={}; yKeys.forEach(k=>{ f[k]=r[k]!=null&&isFinite(r[k])&&Math.round(r[k]*100)/100===mx; });
+    return f;
+  };
+  const cell=(x,on)=>`<td${on?' class="best-yr"':''}>${x==null?"–":col(x)}</td>`;
+  const rowCells=(r,st)=>`${cell(r.spHold,st.spHold)}${cell(r.nqHold,st.nqHold)}${cell(r.one,st.one)}${cell(r.two,st.two)}`;
+  document.getElementById("lyears").innerHTML = yRows.map(r=>
+    `<tr><td>${r.lab}</td>${rowCells(r,yStar(r))}</tr>`
+  ).join("") + `<tr class="total"><td>${FL}</td>${rowCells({spHold:hs5.ret,nqHold:hn5.ret,one:one5.ret,two:two5.ret},yStar({spHold:hs5.ret,nqHold:hn5.ret,one:one5.ret,two:two5.ret}))}</tr>`;
+}
+
 function buildRotParams(){
   const pr=document.getElementById("rparams");
+  pr.innerHTML="";
   const l0=document.createElement("label");l0.textContent="兩倍模式（只用在 Nasdaq 部位）";
   const c=document.createElement("input");c.type="checkbox";c.checked=R.lev2;c.style.width="20px";c.style.height="20px";
   c.onchange=()=>{R.lev2=c.checked;renderRot();};l0.appendChild(c);pr.appendChild(l0);
@@ -699,20 +928,11 @@ function buildRotParams(){
   const i=document.createElement("input");i.type="number";i.step=1;i.min=0;i.value=R.tp;
   i.oninput=()=>{const x=parseFloat(i.value);if(!isNaN(x)){R.tp=x;renderRot();}};
   l.appendChild(i);pr.appendChild(l);
-  const lm=document.createElement("label");lm.textContent="明細與圖上標記";
-  const sel=document.createElement("select");
-  [["stop","新策略（加 2% 停損）"],["old","舊策略（現行不停損）"]].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;sel.appendChild(o);});
-  sel.value=R.mode; sel.onchange=()=>{R.mode=sel.value;renderRot();};
-  lm.appendChild(sel);pr.appendChild(lm);
-  const lv=document.createElement("label");lv.textContent="圖上顯示曲線";
-  const row=document.createElement("div");row.className="chkrow";
-  const mkChk=(key,txt)=>{const w=document.createElement("label");const k=document.createElement("input");k.type="checkbox";k.checked=R[key];k.style.width="16px";k.style.height="16px";k.onchange=()=>{R[key]=k.checked;renderRot();};w.appendChild(k);w.append(txt);return w;};
-  row.appendChild(mkChk("showStop","新策略")); row.appendChild(mkChk("showOld","舊策略"));
-  lv.appendChild(row);pr.appendChild(lv);
 }
-function showView(rot){
-  document.getElementById("idxView").style.display=rot?"none":"";
-  document.getElementById("rotView").style.display=rot?"":"none";
+function showView(name){
+  document.getElementById("idxView").style.display=name==="idx"?"":"none";
+  document.getElementById("rotView").style.display=name==="rot"?"":"none";
+  document.getElementById("lev2View").style.display=name==="lev2"?"":"none";
 }
 
 function build(){
@@ -736,12 +956,15 @@ fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
   const tabs=document.getElementById("tabs");
   names.forEach(n=>{const b=document.createElement("button");b.textContent=n;b.setAttribute("role","tab");
     b.setAttribute("aria-selected",n===current);
-    b.onclick=()=>{showView(false); current=n; applyIdx(n); if(topModeEl) topModeEl.textContent=TOP_LABEL[P.topMode]||P.topMode; if(ftdGainEl) ftdGainEl.textContent=P.ftdGain;[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));render();chart.timeScale().fitContent();};
+    b.onclick=()=>{showView("idx"); current=n; applyIdx(n); if(topModeEl) topModeEl.textContent=TOP_LABEL[P.topMode]||P.topMode; if(ftdGainEl) ftdGainEl.textContent=P.ftdGain;[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));render();chart.timeScale().fitContent();};
     tabs.appendChild(b);});
   if(names.includes("S&P 500") && d.data["Nasdaq"]){
     const b=document.createElement("button");b.textContent="最佳策略";b.setAttribute("role","tab");b.setAttribute("aria-selected",false);
-    b.onclick=()=>{[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));showView(true);renderRot();};
+    b.onclick=()=>{[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b));showView("rot");renderRot();};
     tabs.appendChild(b); buildRotParams();
+    const b2=document.createElement("button");b2.textContent="最佳2倍槓桿策略";b2.setAttribute("role","tab");b2.setAttribute("aria-selected",false);
+    b2.onclick=()=>{[...tabs.children].forEach(x=>x.setAttribute("aria-selected",x===b2));showView("lev2");renderLev2();};
+    tabs.appendChild(b2);
   }
   const pr=document.getElementById("params");
   const note=document.createElement("p"); note.className="note";
@@ -766,7 +989,7 @@ fetch("data.json?"+Date.now()).then(r=>r.json()).then(d=>{
       if(w<lo){ w=lo; say(`資料從 ${lo} 開始，已改用 ${lo}`); }
       if(w>hi){ w=hi; say(`資料只到 ${hi}，已改用 ${hi}`); }
       inps.forEach(x=>x.value=w); BASE_DATE=w;
-      if(document.getElementById("rotView").style.display!=="none") renderRot(); else render();
+      if(document.getElementById("lev2View").style.display!=="none") renderLev2(); else if(document.getElementById("rotView").style.display!=="none") renderRot(); else render();
     });
   }
   build();render();chart.timeScale().fitContent();
