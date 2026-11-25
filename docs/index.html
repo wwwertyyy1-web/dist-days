@@ -66,7 +66,7 @@ h2{font-size:16px;margin:22px 0 8px}
     <span><i style="background:var(--ftd)"></i>漲勢確立 ▲</span>
     <span><b style="color:var(--rise)">▲</b> 進場（本指數策略；括號為觸發訊號：標普確立／NQ 確立＝官方漲勢，快速確立＝停損後買回）</span>
     <span><b style="color:var(--fall)">●</b> 停損（本指數收盤低於進場日 2%）</span>
-    <span><b style="color:#444c56">▼</b> 出場（本指數頭部確立）</span>
+    <span><b style="color:#ffbf00">▼</b> 出場（本指數頭部確立）</span>
     <span><i style="background:var(--stall)"></i>MA20</span>
     <span><i style="background:var(--ftd)"></i>MA50</span>
     <span><i class="band" style="background:var(--fed-hike)"></i>底色：橙＝聯準會升息循環（第一次升息至第一次降息前）</span>
@@ -92,12 +92,12 @@ h2{font-size:16px;margin:22px 0 8px}
     <div id="rstate" style="font-size:15px;margin-bottom:10px"></div>
     <div id="rchart" style="height:480px;background:var(--panel);border:1px solid var(--line);border-radius:8px"></div>
     <div class="legend" id="rlegend">
-      <span><i style="background:#8a94a6"></i>S&amp;P 500（<span class="firstLbl">2021/11/24</span> = 100）</span>
+      <span><i style="background:#1a73e8"></i>S&amp;P 500（<span class="firstLbl">2021/11/24</span> = 100）</span>
       <span><i style="background:var(--ftd)"></i>Nasdaq（<span class="firstLbl">2021/11/24</span> = 100）</span>
       <span id="rlegStratItem"><i style="background:var(--dist)"></i><span id="rlegStrat">舊策略（現行）</span></span>
       <span id="rlegStratStopItem"><i style="background:var(--stop-line)"></i><span id="rlegStratStop">新策略（加 2% 停損）</span></span>
       <span><b style="color:var(--ftd)">▲</b> 換進那斯達克</span>
-      <span><b style="color:#7a5c00">▼</b> 換成標普</span>
+      <span><b style="color:#1a73e8">▼</b> 換成標普</span>
       <span id="rlegCash"><b style="color:var(--fall)">■</b> 換成 BOXX</span>
       <span id="rlegStop"><b style="color:var(--fall)">●</b> 停損換成<span class="cashWord"> BOXX</span></span>
       <span id="rlegTp" style="display:none"><b style="color:var(--stall)">●</b> 停利換回1倍</span>
@@ -366,7 +366,7 @@ function render(){
     const t=rows[x.i].t;
     if(x.act==="enter") m.push({time:t,position:"belowBar",shape:"arrowUp",color:css("--rise"),text:idxEntryText(x,current)});
     else if(x.act==="stop") m.push({time:t,position:"aboveBar",shape:"circle",color:css("--fall"),text:"停損"});
-    else if(x.act==="exit") m.push({time:t,position:"aboveBar",shape:"arrowDown",color:"#444c56",text:"出場"});
+    else if(x.act==="exit") m.push({time:t,position:"aboveBar",shape:"arrowDown",color:"#ffbf00",text:"出場"});
   });
   m.sort((x,y)=>x.time<y.time?-1:1);
   candle.setMarkers(m);
@@ -432,7 +432,7 @@ function cashRet(i, boxx, bil, irx, sp){
 }
 const ROT_ACT = {
   nq:{label:"換進那斯達克", shape:"arrowUp", pos:"belowBar", color:()=>css("--ftd"), text:"那斯達克"},
-  sp:{label:"換成標普", shape:"arrowDown", pos:"aboveBar", color:()=>"#7a5c00", text:"標普"},
+  sp:{label:"換成標普", shape:"arrowDown", pos:"aboveBar", color:()=>"#1a73e8", text:"標普"},
   cash:{label:"換成現金", shape:"square", pos:"aboveBar", color:()=>css("--fall"), text:"現金"},
   stop:{label:"停損換成現金", shape:"circle", pos:"aboveBar", color:()=>css("--fall"), text:"停損"},
   tp:{label:"停利換回1倍", shape:"circle", pos:"belowBar", color:()=>css("--stall"), text:"1倍"}
@@ -592,7 +592,7 @@ function renderRot(){
       rightPriceScale:{borderColor:css("--line")},timeScale:{borderColor:css("--line"),minBarSpacing:0.01},autoSize:true});
     rFed=addFedBg(rchart);
     const o={lineWidth:2,priceLineVisible:false};
-    rS=rchart.addLineSeries({...o,color:"#8a94a6"}); rN=rchart.addLineSeries({...o,color:css("--ftd")});
+    rS=rchart.addLineSeries({...o,color:"#1a73e8"}); rN=rchart.addLineSeries({...o,color:css("--ftd")});
     rStrat=rchart.addLineSeries({...o,color:css("--dist"),lineWidth:2});
     rStratStop=rchart.addLineSeries({...o,color:css("--stop-line"),lineWidth:3});
   }
